@@ -16,3 +16,7 @@ originales de los archivos con referencias a la charla y el estado de las prueba
 - `demo-setup/.state/`, `.atl/` y `.vscode/` están versionados aquí con `git add -f`; `informes/`
   entra normal cuando exista.
 - Para traer cambios de `main`: `git switch pruebas && git merge main`.
+- **No cambiar a `main` en esta carpeta mientras corre `setup.ps1`:** `.state/`, `.atl/` y `.vscode/`
+  solo están versionados en `pruebas`, así que `git switch main` los borra del disco y el script
+  escribiría en un estado que ya no existe. Para editar `main`, usa un worktree aparte:
+  `git worktree add ../fabric-perf-analyst-main main`.
