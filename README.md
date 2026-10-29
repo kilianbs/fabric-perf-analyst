@@ -14,7 +14,7 @@ APM (Agent Package Manager). MCP servers are declared in `.mcp.json`.
 ## Quick start
 
 1. Clone this repository and check the [requirements](#requirements).
-2. Restore the skills and agents: `apm install`.
+2. Restore the `skills-for-fabric` skills: `apm install --only apm`.
 3. Sign in: `az login` (or `az login --allow-no-subscriptions`).
 4. Start `claude` in the repository root and check with `/mcp` that `FabricIQ`, `fabric-sqlendpoint`
    and `powerbi-modeling-mcp` are connected.
@@ -52,7 +52,7 @@ The prompt used to generate the agent and the skill is in
 | Tool | Purpose | Version used |
 |------|---------|--------------|
 | [Claude Code](https://claude.com/claude-code) | Agent host | 2.1.312 |
-| [APM](https://github.com/microsoft/apm) | Installs skills/agents from `apm.yml` | 0.35.0 |
+| [APM](https://github.com/microsoft/apm) | Installs the skills from `apm.yml` | 0.35.0 |
 | [Azure CLI (`az`)](https://learn.microsoft.com/cli/azure/install-azure-cli) | Gets Entra ID tokens for the FabricIQ MCP | 2.91.0 |
 | Node.js + `npx` | Runs `@microsoft/powerbi-modeling-mcp` | Node 24.14.0, npx 11.11.0 |
 | Git | Required by APM to resolve GitHub packages | 2.55.0 |
@@ -114,7 +114,7 @@ az account show                                                   # Signed-in ac
 az rest --method get --resource https://api.fabric.microsoft.com \
   --url https://api.fabric.microsoft.com/v1/workspaces             # Fabric API reachable, token valid
 node --version                                                    # Node.js for npx
-apm install                                                       # Skills and agents restored
+apm install --only apm                                            # skills-for-fabric skills restored
 ```
 
 Then, inside Claude Code, run `/mcp` and check that `FabricIQ`, `fabric-sqlendpoint` and
@@ -123,8 +123,8 @@ Then, inside Claude Code, run `/mcp` and check that `FabricIQ`, `fabric-sqlendpo
 ## Setup
 
 ```bash
-# 1. Install the Fabric skills and agents pinned in apm.yml / apm.lock.yaml
-apm install
+# 1. Install the skills-for-fabric skills pinned in apm.yml / apm.lock.yaml
+apm install --only apm
 
 # 2. Sign in to Azure (used by the FabricIQ MCP token helper)
 az login
@@ -133,9 +133,18 @@ az login
 claude
 ```
 
-`apm install` deploys the `skills-for-fabric` skills to `.claude/skills/` and its agents to
-`.claude/agents/`, at the commit pinned in `apm.lock.yaml`. That content and `apm_modules/` are
-git-ignored; only `fabric-perf-analysis` and `FabricPerfAnalyst` are versioned in this repository.
+`apm install --only apm` deploys the `skills-for-fabric` skills to `.claude/skills/` at the commit
+pinned in `apm.lock.yaml`. Those skills and `apm_modules/` are git-ignored; the only versioned skill
+is `fabric-perf-analysis`.
+
+- **Why `--only apm`:** `.mcp.json` is versioned with the `headersHelper` that `FabricIQ` needs (see
+  [below](#why-fabriciq-uses-headershelper)). A plain `apm install` also tries to write the
+  package's MCP servers into `.mcp.json`, stops on the `FabricIQ` conflict and leaves the install
+  incomplete.
+- **Agents:** the `skills-for-fabric` package is a skill bundle, so APM does not deploy its agents.
+  `FabricAdmin`, `FabricAppDev`, `FabricDataEngineer`, `FabricIQ` and `FabricMigrationEngineer` in
+  `.claude/agents/` are unmodified copies of its `agents/*.agent.md` (MIT license), versioned here.
+  `FabricPerfAnalyst` is this repository's own agent.
 
 ## MCP servers (`.mcp.json`)
 
@@ -163,7 +172,7 @@ If the token expires, run `az login` again, then `/mcp` > reconnect `FabricIQ`.
 ```bash
 claude mcp list          # Connection status of all MCP servers
 apm --version            # Check the APM version
-apm install              # Restore apm_modules/ from apm.lock.yaml
+apm install --only apm   # Restore the skills and apm_modules/ from apm.lock.yaml
 az account show          # Confirm which account/tenant you are signed in with
 ```
 
