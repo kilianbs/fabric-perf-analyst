@@ -1,0 +1,35 @@
+table dim_product
+
+	column product_code
+		dataType: string
+		summarizeBy: none
+		sourceColumn: product_code
+
+	column product_name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: product_name
+
+	column category
+		dataType: string
+		summarizeBy: none
+		sourceColumn: category
+
+	column list_price
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: list_price
+
+	column unit_cost
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: unit_cost
+
+	partition dim_product = m
+		mode: import
+		source =
+				let
+				    Source = Sql.Database("{{GOLD_SQL_ENDPOINT}}", "{{GOLD_DATABASE}}"),
+				    Data = Source{[Schema = "dbo", Item = "dim_product"]}[Data]
+				in
+				    Data

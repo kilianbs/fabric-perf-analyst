@@ -1,0 +1,25 @@
+table dim_store
+
+	column store_id
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: store_id
+
+	column store_name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: store_name
+
+	column city
+		dataType: string
+		summarizeBy: none
+		sourceColumn: city
+
+	partition dim_store = m
+		mode: import
+		source =
+				let
+				    Source = Sql.Database("{{GOLD_SQL_ENDPOINT}}", "{{GOLD_DATABASE}}"),
+				    Data = Source{[Schema = "dbo", Item = "dim_store"]}[Data]
+				in
+				    Data

@@ -1,0 +1,35 @@
+table dim_customer
+
+	column customer_id
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: customer_id
+
+	column customer_name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: customer_name
+
+	column email
+		dataType: string
+		summarizeBy: none
+		sourceColumn: email
+
+	column segment
+		dataType: string
+		summarizeBy: none
+		sourceColumn: segment
+
+	column updated_at
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: updated_at
+
+	partition dim_customer = m
+		mode: import
+		source =
+				let
+				    Source = Sql.Database("{{GOLD_SQL_ENDPOINT}}", "{{GOLD_DATABASE}}"),
+				    Data = Source{[Schema = "dbo", Item = "dim_customer"]}[Data]
+				in
+				    Data

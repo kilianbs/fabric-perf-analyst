@@ -1,0 +1,16 @@
+enable_native_execution_engine: false
+instance_pool_id: null
+driver_cores: 8
+driver_memory: 56g
+executor_cores: 8
+executor_memory: 56g
+dynamic_executor_allocation:
+  enabled: true
+  min_executors: 1
+  max_executors: 4
+spark_conf:
+  spark.fabric.resourceProfile: readHeavyForPBI
+  spark.sql.parquet.vorder.default: 'true'
+  spark.databricks.delta.optimizeWrite.enabled: 'false'
+  spark.databricks.delta.autoCompact.enabled: 'false'
+runtime_version: '1.3'

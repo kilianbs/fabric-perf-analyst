@@ -1,0 +1,22 @@
+relationship fact_sales_dim_customer
+	crossFilteringBehavior: bothDirections
+	fromColumn: fact_sales.customer_id
+	toColumn: dim_customer.customer_id
+
+relationship fact_sales_dim_product
+	fromColumn: fact_sales.product_code
+	toColumn: dim_product.product_code
+
+relationship fact_sales_dim_store
+	fromColumn: fact_sales.store_id
+	toColumn: dim_store.store_id
+
+relationship fact_sales_dim_date
+	fromColumn: fact_sales.sale_date
+	toColumn: dim_date.date
+
+relationship promotions_dim_product
+	toCardinality: many
+	crossFilteringBehavior: bothDirections
+	fromColumn: promotions.product_code
+	toColumn: dim_product.product_code

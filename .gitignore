@@ -1,0 +1,15 @@
+# APM dependencies
+apm_modules/
+
+# Content deployed by `apm install` (restored from apm.lock.yaml).
+# Only this repository's own skill and agent are versioned.
+.claude/skills/*
+!.claude/skills/fabric-perf-analysis/
+.claude/agents/*
+!.claude/agents/FabricPerfAnalyst.md
+
+# Local tooling and editor settings
+.atl/
+.vscode/
+.claude/settings.local.json
+__pycache__/

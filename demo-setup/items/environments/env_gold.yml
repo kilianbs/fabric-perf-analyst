@@ -1,0 +1,15 @@
+enable_native_execution_engine: false
+instance_pool_id: {{GOLD_POOL_ID}}
+driver_cores: {{GOLD_CORES}}
+driver_memory: {{GOLD_MEMORY}}
+executor_cores: {{GOLD_CORES}}
+executor_memory: {{GOLD_MEMORY}}
+dynamic_executor_allocation:
+  enabled: false
+  min_executors: {{GOLD_EXECUTORS}}
+  max_executors: {{GOLD_EXECUTORS}}
+spark_conf:
+  spark.fabric.resourceProfile: writeHeavy
+  spark.sql.parquet.vorder.default: 'false'
+  spark.databricks.delta.optimizeWrite.enabled: 'false'
+runtime_version: '1.3'

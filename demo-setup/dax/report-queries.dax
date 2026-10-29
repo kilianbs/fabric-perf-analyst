@@ -1,0 +1,45 @@
+// Queries issued by the "Sales overview" report page of sm_sales.
+// Run them one at a time (DAX query view, DAX Studio or the agent through powerbi-modeling-mcp).
+
+// Q1 - KPI cards
+EVALUATE
+ROW(
+    "Total Sales", [Total Sales],
+    "Margin %", [Margin %],
+    "Avg Ticket", [Avg Ticket],
+    "Active Customers", [Active Customers]
+)
+
+// Q2 - Sales by store and month
+EVALUATE
+SUMMARIZECOLUMNS(
+    dim_store[store_name],
+    fact_sales[year_month],
+    "Total Sales", [Total Sales],
+    "Enterprise Sales", [Enterprise Sales],
+    "Margin %", [Margin %]
+)
+
+// Q3 - Daily trend with running total
+EVALUATE
+SUMMARIZECOLUMNS(
+    fact_sales[sale_date],
+    "Total Sales", [Total Sales],
+    "Sales Running Total", [Sales Running Total]
+)
+
+// Q4 - Top customers by city
+EVALUATE
+SUMMARIZECOLUMNS(
+    dim_store[city],
+    "Top 100 Customers Sales", [Top 100 Customers Sales]
+)
+
+// Q5 - Category performance with promotions
+EVALUATE
+SUMMARIZECOLUMNS(
+    dim_product[category],
+    promotions[promo_name],
+    "Total Sales", [Total Sales],
+    "Sales LY", [Sales LY]
+)

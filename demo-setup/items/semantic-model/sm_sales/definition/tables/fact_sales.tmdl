@@ -1,0 +1,121 @@
+table fact_sales
+
+	measure 'Total Sales' = SUM(fact_sales[amount])
+		formatString: #,##0.00
+
+	measure 'Total Quantity' = SUM(fact_sales[quantity])
+		formatString: #,##0
+
+	measure Margin = SUM(fact_sales[line_margin])
+
+	measure 'Margin %' = IFERROR([Margin] / [Total Sales], 0)
+
+	measure 'Enterprise Sales' = CALCULATE([Total Sales], FILTER(fact_sales, RELATED(dim_customer[segment]) = "Enterprise"))
+
+	measure 'Avg Ticket' = AVERAGEX(fact_sales, CALCULATE(SUM(fact_sales[amount])))
+
+	measure 'Sales Running Total' =
+			CALCULATE(
+			    [Total Sales],
+			    FILTER(ALL(fact_sales), fact_sales[sale_ts] <= MAX(fact_sales[sale_ts]))
+			)
+
+	measure 'Top 100 Customers Sales' =
+			SUMX(
+			    VALUES(dim_customer[customer_id]),
+			    IF(
+			        RANKX(ALL(dim_customer[customer_id]), CALCULATE(SUM(fact_sales[amount]))) <= 100,
+			        CALCULATE(SUM(fact_sales[amount]))
+			    )
+			)
+
+	measure 'Active Customers' = COUNTROWS(FILTER(VALUES(dim_customer[customer_id]), CALCULATE(COUNTROWS(fact_sales)) > 0))
+
+	measure 'Sales LY' = CALCULATE([Total Sales], SAMEPERIODLASTYEAR(fact_sales[sale_date]))
+
+	column sale_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: sale_id
+
+	column sale_ts
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: sale_ts
+
+	column sale_date
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: sale_date
+
+	column store_id
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: store_id
+
+	column customer_id
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: customer_id
+
+	column product_code
+		dataType: string
+		summarizeBy: none
+		sourceColumn: product_code
+
+	column quantity
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: quantity
+
+	column unit_price
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: unit_price
+
+	column unit_cost
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: unit_cost
+
+	column discount
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: discount
+
+	column amount
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: amount
+
+	column channel
+		dataType: string
+		summarizeBy: none
+		sourceColumn: channel
+
+	column payment_method
+		dataType: string
+		summarizeBy: none
+		sourceColumn: payment_method
+
+	column note_class
+		dataType: string
+		summarizeBy: none
+		sourceColumn: note_class
+
+	column line_margin = fact_sales[amount] - fact_sales[quantity] * fact_sales[unit_cost]
+		dataType: double
+		summarizeBy: sum
+
+	column year_month = FORMAT(fact_sales[sale_date], "yyyy-MM")
+		dataType: string
+		summarizeBy: none
+
+	partition fact_sales = m
+		mode: import
+		source =
+				let
+				    Source = Sql.Database("{{GOLD_SQL_ENDPOINT}}", "{{GOLD_DATABASE}}"),
+				    Data = Source{[Schema = "dbo", Item = "fact_sales"]}[Data]
+				in
+				    Data

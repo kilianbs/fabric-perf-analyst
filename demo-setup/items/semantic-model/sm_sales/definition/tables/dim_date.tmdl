@@ -1,0 +1,35 @@
+table dim_date
+
+	column date
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: date
+
+	column year
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: year
+
+	column month
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: month
+
+	column month_name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: month_name
+
+	column weekday
+		dataType: string
+		summarizeBy: none
+		sourceColumn: weekday
+
+	partition dim_date = m
+		mode: import
+		source =
+				let
+				    Source = Sql.Database("{{GOLD_SQL_ENDPOINT}}", "{{GOLD_DATABASE}}"),
+				    Data = Source{[Schema = "dbo", Item = "dim_date"]}[Data]
+				in
+				    Data

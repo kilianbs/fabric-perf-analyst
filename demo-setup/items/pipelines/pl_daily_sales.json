@@ -1,0 +1,44 @@
+{
+  "properties": {
+    "description": "Daily sales load: bronze ingest, silver conformance, gold star schema and semantic model refresh.",
+    "activities": [
+      {
+        "name": "Ingest bronze",
+        "type": "TridentNotebook",
+        "dependsOn": [],
+        "policy": { "timeout": "0.02:00:00", "retry": 0, "retryIntervalInSeconds": 30, "secureOutput": false, "secureInput": false },
+        "typeProperties": {
+          "notebookId": "{{NB_01_ID}}",
+          "workspaceId": "{{WORKSPACE_ID}}",
+          "parameters": {
+            "rows_per_day": { "value": { "value": "@pipeline().parameters.rows_per_day", "type": "Expression" }, "type": "int" }
+          }
+        }
+      },
+      {
+        "name": "Bronze to silver",
+        "type": "TridentNotebook",
+        "dependsOn": [ { "activity": "Ingest bronze", "dependencyConditions": [ "Succeeded" ] } ],
+        "policy": { "timeout": "0.04:00:00", "retry": 0, "retryIntervalInSeconds": 30, "secureOutput": false, "secureInput": false },
+        "typeProperties": { "notebookId": "{{NB_02_ID}}", "workspaceId": "{{WORKSPACE_ID}}" }
+      },
+      {
+        "name": "Silver to gold",
+        "type": "TridentNotebook",
+        "dependsOn": [ { "activity": "Bronze to silver", "dependencyConditions": [ "Succeeded" ] } ],
+        "policy": { "timeout": "0.02:00:00", "retry": 0, "retryIntervalInSeconds": 30, "secureOutput": false, "secureInput": false },
+        "typeProperties": { "notebookId": "{{NB_03_ID}}", "workspaceId": "{{WORKSPACE_ID}}" }
+      },
+      {
+        "name": "Refresh semantic model",
+        "type": "TridentNotebook",
+        "dependsOn": [ { "activity": "Silver to gold", "dependencyConditions": [ "Succeeded" ] } ],
+        "policy": { "timeout": "0.00:30:00", "retry": 0, "retryIntervalInSeconds": 30, "secureOutput": false, "secureInput": false },
+        "typeProperties": { "notebookId": "{{NB_04_ID}}", "workspaceId": "{{WORKSPACE_ID}}" }
+      }
+    ],
+    "parameters": {
+      "rows_per_day": { "type": "int", "defaultValue": {{ROWS_PER_DAY}} }
+    }
+  }
+}
