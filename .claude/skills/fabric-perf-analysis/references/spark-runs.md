@@ -55,7 +55,7 @@ Base path: `.claude/skills/spark-cli/references/`.
 
 ## 6. Writes (propose only)
 
-Re-running notebooks, jobs or pipelines; `spark.conf.set` fixes; `OPTIMIZE`, `ALTER TABLE ... SET TBLPROPERTIES`, rewriting tables; `%pip install`; `copyEventLog`; creating Livy sessions or statements (ask first); schedule changes.
+Re-running notebooks, jobs or pipelines; `spark.conf.set` fixes; `OPTIMIZE`, `ALTER TABLE ... SET TBLPROPERTIES`, rewriting tables; `%pip install`; `copyEventLog`; schedule changes. Read-only Livy statements are a confirmed diagnostic, not a write (agent § Action tiers, Tier B: ask first).
 
 ## 7. Cross-area pivots
 

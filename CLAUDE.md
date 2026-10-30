@@ -8,6 +8,10 @@ Requisitos, instalación y configuración: [README.md](README.md).
 - **Análisis de rendimiento:** cualquier petición de diagnóstico de rendimiento de Fabric (Spark,
   tablas Delta, SQL endpoint/Warehouse, modelos semánticos o capacidad) se delega en el agente
   `FabricPerfAnalyst`. La administración (permisos, capacidad, gobierno) corresponde a `FabricAdmin`.
+- **Confirmaciones del analista:** si `FabricPerfAnalyst` devuelve una `Solicitud de confirmación`,
+  la sesión principal la muestra completa al usuario, sin resumirla ni decidir por él, y reanuda el
+  mismo agente (`SendMessage` con su ID, no uno nuevo) con la respuesta literal por cada `C#`. Si el
+  usuario ya aprobó una operación concreta al pedir el análisis, se cita literalmente en el prompt.
 - **Solo lectura frente a Fabric:** ninguna sesión escribe en un workspace (crear, modificar, borrar,
   ejecutar, refrescar, programar o mantener items) sin confirmación explícita del usuario para esa
   operación concreta.
