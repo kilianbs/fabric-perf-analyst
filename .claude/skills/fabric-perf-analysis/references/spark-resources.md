@@ -51,7 +51,7 @@ How Spark compute is sized and configured (pools, environments, executors, resou
 
 ## 6. Writes (propose only)
 
-Changing or publishing environments; pool size, node size, autoscale or dynamic allocation; resource profile; `spark.conf.set`; deleting or creating Livy sessions; keep-alive statements; any statement in a session (ask first: consumes CU).
+Changing or publishing environments; pool size, node size, autoscale or dynamic allocation; resource profile; `spark.conf.set`; deleting Livy sessions the agent did not create; keep-alive statements. Creating one Livy session, running read-only statements in it and deleting it afterwards is a confirmed diagnostic, not a write (agent § Action tiers, Tier B: ask first, consumes CU).
 
 ## 7. Cross-area pivots
 
