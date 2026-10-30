@@ -1,7 +1,8 @@
 # Material de la charla (rama local `pruebas`)
 
-Esta rama no se sube a GitHub: un hook `pre-push` local la rechaza. Contiene las versiones
-originales de los archivos con referencias a la charla y el estado de las pruebas.
+Rama de pruebas, subida a `origin` mientras el repositorio es privado. **Borrarla antes de hacer
+público el repositorio:** `git push origin --delete pruebas`. Contiene las versiones originales de
+los archivos con referencias a la charla y el estado de las pruebas.
 
 | Archivo | Qué es |
 |---------|--------|
