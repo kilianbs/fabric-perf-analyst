@@ -31,7 +31,7 @@ Table maintenance REST is not in the skills; Learn: [Manage a lakehouse with the
 | Signal | How to get it | Threshold / interpretation |
 |--------|---------------|----------------------------|
 | Table anomaly code and description | `EXEC sys.sp_get_table_health_metrics` per table via `fabric-sqlendpoint` | `lakehouse-health.md` § Interpretation |
-| File count, size, growth | Health procedure output; `DESCRIBE DETAIL` only through Livy (ask first) | `performance-patterns.md` § Detection Thresholds |
+| File count, size, growth | Health procedure output; `DESCRIBE DETAIL` only through Livy (Tier B, consumes CU) | `performance-patterns.md` § Detection Thresholds |
 | Last maintenance run and status | Lakehouse job instances (`TableMaintenance`) | Learn statuses; `Deduped` = skipped because one was running |
 | MLV run history, status per lineage, error code | MLV job instances | `spark-cli/references/mlv.md` § 6. Run History diagnostic workflow; MLV failure table in `spark-cli/references/operations.md` § Must/Prefer/Avoid |
 
@@ -42,7 +42,7 @@ Table maintenance REST is not in the skills; Learn: [Manage a lakehouse with the
 - **Failed call = "No evaluada".** A failed or truncated call is "not evaluated", never healthy (`lakehouse-health.md` § Interpretation). Report it in Notes.
 - **Request limit.** Run the procedure once per fully qualified table and respect the MCP request rate (`sqldw-cli/references/consumption.md` § MCP Limits; `sqldw-cli/references/operations/scenarios.md` § 4. Analyze Lakehouse tables needing attention). For many tables, sample the largest or the ones read by the slow workload and say so in Alcance.
 - **Lakehouse only.** Health checks apply to Lakehouse SQL endpoints, not Warehouses (`lakehouse-health.md` § Applicability).
-- **`DESCRIBE DETAIL` costs CU.** It needs a Livy session and statement; ask before creating either.
+- **`DESCRIBE DETAIL` costs CU.** It needs a Livy session and statement; run it within the Tier B budget (agent § Action tiers: one session per analysis, deleted at the end).
 - **MLV: no OData.** The MLV APIs do not support OData filters; filter and sort client-side and follow `continuationToken` (`spark-cli/references/mlv.md` § Tips for Users).
 - **MLV: `Deduped` is not a failure.** It means another refresh was already running (`spark-cli/references/mlv.md` § 6. Run History diagnostic workflow, § Trigger On-Demand Refresh (POST /instances); Learn uses the same status for table maintenance). The UI "Skipped" shows as Cancelled in the API (same section).
 - **MLV job type mismatch.** History shows `MaterializedLakeViews` while the trigger uses `refreshMaterializedLakeViews`; filter on both (`spark-cli/references/mlv.md` § 2. Use REST APIs exactly as documented, § Trigger On-Demand Refresh (POST /instances)).

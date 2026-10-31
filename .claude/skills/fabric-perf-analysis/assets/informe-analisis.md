@@ -17,7 +17,7 @@ Instrucciones de uso (borrar todos los comentarios al rellenar):
 | **Ámbito** | workspace `<WORKSPACE>` · <items analizados> |
 | **Ventana analizada** | <AAAA-MM-DD HH:MM> → <AAAA-MM-DD HH:MM> UTC |
 | **Agente / host** | Claude Code \| GitHub Copilot CLI · skills: <skills usadas> |
-| **Modo** | Solo lectura \| Solo lectura + diagnóstico confirmado (<C#>) |
+| **Modo** | Solo lectura \| Lectura + diagnóstico activo (<Livy, ClearCache>) |
 | **Severidad global** | Alta \| Media \| Baja |
 | **Confianza global** | Alta \| Media \| Baja |
 
