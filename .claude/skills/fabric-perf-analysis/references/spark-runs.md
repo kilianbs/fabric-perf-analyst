@@ -51,11 +51,11 @@ Base path: `.claude/skills/spark-cli/references/`.
 - **Code vs infrastructure.** All Spark jobs succeeded plus a `Cell In[N]` traceback means user code; `failureType` UserError/SystemError helps (`pipeline-diagnosis.md` Steps P4b, P6). Report the category explicitly.
 - **Error-source order differs between files.** `operations.md` and `automated-diagnostic-workflow.md` Step 3 treat a non-empty job instance `failureReason` as sufficient; `pipeline-diagnosis.md` reads it last. Use `failureReason` first, then Advisor, then logs, and say which source the finding came from.
 - **Empty resource usage is not healthy.** `capacityExceeded=true` in resource usage means the data is empty (`SPARK-MONITORING-CORE.md` § Resource Usage API).
-- **Livy statements cost CU.** Operations files include Livy statement POSTs and keep-alives; they consume CU and need confirmation (see SKILL.md § Common evidence rules).
+- **Livy statements cost CU.** Operations files include Livy statement POSTs and keep-alives; they consume CU, so keep them within the Tier B budget and never send keep-alives (see SKILL.md § Common evidence rules).
 
 ## 6. Writes (propose only)
 
-Re-running notebooks, jobs or pipelines; `spark.conf.set` fixes; `OPTIMIZE`, `ALTER TABLE ... SET TBLPROPERTIES`, rewriting tables; `%pip install`; `copyEventLog`; schedule changes. Read-only Livy statements are a confirmed diagnostic, not a write (agent § Action tiers, Tier B: ask first).
+Re-running notebooks, jobs or pipelines; `spark.conf.set` fixes; `OPTIMIZE`, `ALTER TABLE ... SET TBLPROPERTIES`, rewriting tables; `%pip install`; `copyEventLog`; schedule changes. Read-only Livy statements are a diagnostic execution, not a write (agent § Action tiers, Tier B: run without asking, consumes CU).
 
 ## 7. Cross-area pivots
 

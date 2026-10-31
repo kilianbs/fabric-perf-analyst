@@ -46,7 +46,7 @@ Base path: `.claude/skills/semantic-model-authoring/`.
 - **Write vs Build.** MCP List/Get needs Write on the model; with Build only, use `INFO.VIEW.*` through `dax_query_operations` (`SKILL.md` § Workflow: Discover Semantic Model Metadata). Many other `INFO.*` functions need elevated permissions (`metadata-discovery.md` § Troubleshooting). A permission error is a Notes finding, not a reason to stop the whole analysis.
 - **Measures are tested, not changed.** Candidate measures go in the query's `DEFINE MEASURE` block; never create or edit measures in the model (`dax-perf-decision-guide.md` § Phase 1, Step 1; `dax-guidelines.md` § DEFINE Block).
 - **Measurement protocol is mandatory.** Warm-up, repeated runs, dispersion rule and noise band come from `dax-perf-decision-guide.md` § Phase 1, Step 3 and § Phase 2. Do not report a single run as a speed-up.
-- **Cache clear needs confirmation.** The protocol clears the cache between runs, but the skill names no mechanism and no side effect. XMLA `ClearCache` acts on the whole database ([Learn: Clear Analysis Services caches](https://learn.microsoft.com/analysis-services/instances/clear-the-analysis-services-caches)), so it affects every user of the model. Ask before each clear; without it, measure warm and say so in Notes.
+- **Cache clear affects every user.** The protocol clears the cache between runs, but the skill names no mechanism and no side effect. XMLA `ClearCache` acts on the whole database ([Learn: Clear Analysis Services caches](https://learn.microsoft.com/analysis-services/instances/clear-the-analysis-services-caches)), so it affects every user of the model. Run it as Tier B without asking, only between benchmark runs, and record each clear with its UTC time.
 - **Routing DAX vs data layout.** Follow `dax-perf-decision-guide.md` § DAX vs. Data Layout and § Escalation Triggers. Direct Lake guidance for performance is in `dax-perf-patterns.md` § Section 6, not in `direct-lake-guidelines.md` (authoring only).
 - **Direct Lake fallback is not in the skill.** Verify in Learn ([How Direct Lake works § DirectQuery fallback](https://learn.microsoft.com/fabric/fundamentals/direct-lake-how-it-works#directquery-fallback)): only Direct Lake on SQL falls back (controlled by `DirectLakeBehavior`); Direct Lake on OneLake does not, and a guardrail breach makes refresh fail instead. Record it in Notes as a skill/doc gap.
 - **Auto-apply is overridden.** Tier 1 "Auto-apply" in `dax-perf-decision-guide.md` § Tiers and Autonomy and the banner in `dax-perf-patterns.md` § Section 3 do not apply to this agent: the workflow ends at the Phase 2 comparison. Analyze Best Practices ends at step 4 "Present findings"; steps 5-6 are never run.
@@ -57,7 +57,7 @@ Base path: `.claude/skills/semantic-model-authoring/`.
 
 ## 6. Writes (propose only)
 
-Model, measure, relationship, partition or column changes; Tier 1-4 optimizations; best-practice fixes; refresh trigger, cancel or schedule change; `Default.UpdateParameters`; permission grants; `bindConnection`; `updateDefinition`; deploy; cache clear (asks first, see traps).
+Model, measure, relationship, partition or column changes; Tier 1-4 optimizations; best-practice fixes; refresh trigger, cancel or schedule change; `Default.UpdateParameters`; permission grants; `bindConnection`; `updateDefinition`; deploy. Cache clear is not in this list: it is a Tier B diagnostic execution, run without asking (see traps).
 
 ## 7. Cross-area pivots
 

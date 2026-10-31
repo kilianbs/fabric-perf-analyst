@@ -27,7 +27,7 @@ APM (Agent Package Manager). MCP servers are declared in `.mcp.json`.
 
 On top of the bundle, this repo adds one agent ([`.claude/agents/FabricPerfAnalyst.md`](.claude/agents/FabricPerfAnalyst.md))
 and one skill ([`.claude/skills/fabric-perf-analysis/`](.claude/skills/fabric-perf-analysis/SKILL.md))
-for read-only performance diagnosis. They are a thin layer: they point to the bundle's skills and
+for performance diagnosis that never changes items or data. They are a thin layer: they point to the bundle's skills and
 do not copy their thresholds, REST routes or procedures.
 
 | Topic | `skills-for-fabric` bundle | Added by this repo |
@@ -35,7 +35,7 @@ do not copy their thresholds, REST routes or procedures.
 | Scope | One skill per workload (`spark-cli`, `sqldw-cli`, `semantic-model-authoring`, ...). Each has its own diagnostic procedure. | One entry point for performance across Spark runs, Spark resources and sessions, Delta tables and MLVs, the SQL endpoint and Warehouse, semantic models, and capacity. |
 | Agents | `FabricAdmin`, `FabricDataEngineer`, `FabricAppDev`, ... These manage and build things. | `FabricPerfAnalyst` only diagnoses. Administration stays with `FabricAdmin`. |
 | Routing | You need to know which skill and which reference to open. | A map from symptom to area (for example "slower every day", OOM, throttling, slow DAX). The agent switches area when the evidence points elsewhere, for example from a slow pipeline to a fragmented table. |
-| Writes | Some workflows apply changes themselves: DAX "Auto-apply", the fix phase of Analyze Best Practices, `copyEventLog`, session cleanup. | Never changes items, data or definitions: every change becomes a recommendation marked "Requiere confirmación". Two diagnostic executions run only after the user confirms them: read-only Livy statements such as `DESCRIBE DETAIL` (they consume CU) and clearing the VertiPaq cache for cold DAX benchmarks (it affects every user of the model). The agent pauses with a "Solicitud de confirmación", the main session relays it, and resumes the same agent with the answer. |
+| Writes | Some workflows apply changes themselves: DAX "Auto-apply", the fix phase of Analyze Best Practices, `copyEventLog`, session cleanup. | Never changes items, data or definitions: every change becomes a recommendation marked "Requiere confirmación". Two diagnostic executions run on their own, without asking: read-only Livy statements such as `DESCRIBE DETAIL` (one session per analysis, deleted at the end; they consume CU) and clearing the VertiPaq cache for cold DAX benchmarks (it affects every user of the model). A hook ([`.claude/hooks/livy_readonly_guard.py`](.claude/hooks/livy_readonly_guard.py)), declared in the agent's frontmatter so it runs only inside `FabricPerfAnalyst` and never affects the main session or the bundle's agents, only lets through Livy statements on a read-only allowlist (`spark.sql` with `DESCRIBE`, `SHOW`, `EXPLAIN`, `SELECT` or `WITH`, submitted with `az rest --body @file`). |
 | Known traps | Spread across the references. Some contradict each other: the V-Order key, optimize write in Gold, two sets of Spark thresholds, the Operation Id join, result-set caching. | Each area file lists the traps checked against the installed skill text, and which rule wins. Gaps the skills don't cover (Direct Lake fallback, cache-clear impact, Capacity Metrics retention) are checked in Microsoft Learn. |
 | Evidence | Each skill has its own reporting rules. | Common rules: every figure comes from a logged query or call, every threshold cites the reference it comes from, and data past its retention is reported as missing, not guessed. |
 | Output | A free-form answer in chat. | A Spanish report from a fixed template ([`assets/informe-analisis.md`](.claude/skills/fabric-perf-analysis/assets/informe-analisis.md)). Every finding, recommendation and ruled-out hypothesis links to its evidence. Reports are saved in `informes/<date>/`, one folder per analysis day, and never overwritten. |
@@ -56,7 +56,7 @@ The prompt used to generate the agent and the skill is in
 | [Azure CLI (`az`)](https://learn.microsoft.com/cli/azure/install-azure-cli) | Gets Entra ID tokens for the FabricIQ MCP | 2.91.0 |
 | Node.js + `npx` | Runs `@microsoft/powerbi-modeling-mcp` | Node 24.14.0, npx 11.11.0 |
 | Git | Required by APM to resolve GitHub packages | 2.55.0 |
-| Python | Used by some Fabric skills | 3.13.3 |
+| Python | Used by some Fabric skills and by the Livy guard hook | 3.13.3 |
 
 You also need a Microsoft Entra account with access to a Fabric workspace.
 
@@ -106,6 +106,9 @@ analysis: the agent reports it in the Notes section of the report.
 
 - The local `powerbi-modeling-mcp` server does not support macOS. On a Mac, use the hosted Power BI
   Authoring MCP server instead.
+- The Livy guard hook lives in the frontmatter of `.claude/agents/FabricPerfAnalyst.md`. Claude Code
+  runs a project agent's frontmatter hooks only after you accept the workspace trust dialog for this
+  folder; until then the agent still runs, without the hook.
 
 ### Quick check
 
