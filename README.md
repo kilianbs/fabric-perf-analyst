@@ -20,8 +20,9 @@ APM (Agent Package Manager). MCP servers are declared in `.mcp.json`.
    and `powerbi-modeling-mcp` are connected.
 5. Build the lab workspace with planted performance problems:
    `pwsh ./demo-setup/setup.ps1 -CapacityName "<your capacity name>"` ([details](demo-setup/README.md)).
-6. Ask the agent about each scenario in [`demo-setup/DEMO-SCENARIOS.md`](demo-setup/DEMO-SCENARIOS.md).
-   Reports are written to `informes/`.
+6. Follow one of the conversations, or ask about each scenario, in
+   [`demo-setup/DEMO-SCENARIOS.md`](demo-setup/DEMO-SCENARIOS.md). Reports are written to `informes/`,
+   one per turn.
 
 ## What this repo adds: `FabricPerfAnalyst`
 

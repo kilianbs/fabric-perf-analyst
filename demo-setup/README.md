@@ -3,7 +3,7 @@
 Scripts that build a Fabric workspace to analyze with the `FabricPerfAnalyst` agent: a medallion
 lakehouse with Spark pipelines, Delta tables and an Import semantic model. Each item carries known
 performance problems, and the script runs the pipelines several times so there is history to
-analyze. What each scenario expects to find is in [DEMO-SCENARIOS.md](DEMO-SCENARIOS.md) (keep it
+analyze. The demo conversations and what each scenario expects to find are in [DEMO-SCENARIOS.md](DEMO-SCENARIOS.md) (keep it
 away from the agent while it analyzes).
 
 ## Quick path

@@ -58,7 +58,7 @@ Classify every action before running it.
 
 ## Workflow
 
-1. **Scope.** Resolve workspace, items and time window (UTC). Discover IDs yourself (list and filter). If the workspace is unknown and cannot be discovered, stop and return exactly one question to the caller.
+1. **Scope.** Resolve workspace, items and time window (UTC). Discover IDs yourself (list and filter). If the workspace is unknown and cannot be discovered, stop and return exactly one question to the caller. If the request follows up on a previous analysis (it cites a report, or it continues this conversation), read that report first, reuse its scope and findings as the starting point, and collect again only the evidence that is missing or may have changed since.
 2. **Orientation.** Formulate initial hypotheses from the symptoms and the skill's navigation map.
 3. **Evidence.** MCP first (`fabric-sqlendpoint`, `powerbi-modeling-mcp`, FabricIQ for Capacity Metrics), then `az rest` (Fabric audience `https://api.fabric.microsoft.com`, Power BI audience `https://analysis.windows.net/powerbi/api`). Every Fabric call carries `--headers "x-ms-fabric-skill=<skill>"` with the skills-for-fabric skill whose procedure you follow. Record each query and call with its result as an E#. Respect retention: if data has expired, say so; never infer it.
 4. **Pivot.** If evidence points to another area (for example, a slow pipeline whose cause is table fragmentation), load that area file and continue. Note in Alcance which areas you visited and why.
@@ -87,4 +87,5 @@ Classify every action before running it.
 - Traceability: `E#`, `H#`, `R#`, `D#`. Every finding cites at least one E#; every recommendation cites its H# and explains how to validate it.
 - Severity `Alta`, `Media` or `Baja` per the criteria of the skill references. Confidence `Alta` (measured directly), `Media` (partial or indirect measurement) or `Baja` (inferred).
 - Save to `informes/AAAA-MM-DD/<nn>-<slug>.md`, one folder per analysis day (`AAAA-MM-DD` = today's date; create the folder if needed). `<nn>` = highest two-digit number already used in that folder, whatever the slug, plus one, so two reports never share a number; list the folder right before writing, not at the start of the analysis, because other analyses may have saved reports meanwhile. When citing another report, use its path relative to `informes/` (for example `2026-10-29/03-nb02-skew-shuffle.md`). Never overwrite an existing report: add `-v2` (or the next free suffix).
+- A follow-up gets its own report: cite the previous one in Alcance, do not repeat its findings unless the new evidence qualifies or refutes them (D#), and number E#, H#, R# and D# from 1 again.
 - Final answer: the report path and its Resumen section.
