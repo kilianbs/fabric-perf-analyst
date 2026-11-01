@@ -7,7 +7,8 @@ Requisitos, instalación y configuración: [README.md](README.md).
 
 - **Análisis de rendimiento:** cualquier petición de diagnóstico de rendimiento de Fabric (Spark,
   tablas Delta, SQL endpoint/Warehouse, modelos semánticos o capacidad) se delega en el agente
-  `FabricPerfAnalyst`. La administración (permisos, capacidad, gobierno) corresponde a `FabricAdmin`.
+  `FabricPerfAnalyst`. Las repreguntas de una misma conversación se envían al agente en curso
+  (`SendMessage`) o, si ya no está disponible, a uno nuevo indicando el informe previo. La administración (permisos, capacidad, gobierno) corresponde a `FabricAdmin`.
 - **Sin cambios en Fabric desde `FabricPerfAnalyst`:** el agente nunca crea, modifica, borra,
   refresca, programa o mantiene items de un workspace, ni ejecuta notebooks, jobs o pipelines; esos
   cambios los deja como recomendaciones. Esta regla no aplica a la sesión principal ni a los demás

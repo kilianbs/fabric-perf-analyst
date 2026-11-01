@@ -1,7 +1,9 @@
 # Demo scenarios: what is planted and what the agent should find
 
-For each scenario: the problem built into the workspace, where it lives, a prompt to give the
-agent (in Spanish) and the findings to expect. Run numbers assume the
+There are two ways to run the demo: as a [conversation](#conversations) that starts broad and
+drills into the details (or the other way round), or one scenario at a time. For each scenario: the
+problem built into the workspace, where it lives, a prompt to give the agent (in Spanish) and the
+findings to expect. The scenarios are also the answer key for the conversation turns. Run numbers assume the
 default `-SimulatedDays 10`; use `-SimulatedDays 15` or more if scenario 1 needs a clearer trend (each
 run takes 15-20 minutes).
 
@@ -18,6 +20,52 @@ evidence. This file and `demo-setup/` would give them away. While the agent anal
 ```json
 { "permissions": { "deny": ["Read(demo-setup/**)", "Grep(demo-setup/**)", "Glob(demo-setup/**)"] } }
 ```
+
+## Conversations
+
+A conversation is a chain of short follow-up questions, each one reacting to what the agent just
+answered. It shows how the agent pivots between areas instead of answering one long prompt.
+
+- **Turn 1** asks the main session for the analysis; it delegates to `FabricPerfAnalyst`.
+- **Later turns** are typed in the same chat. The main session continues the same agent
+  (`SendMessage`) or, if it is no longer available, starts a new one pointing at the previous
+  report. The agent reuses the scope and findings of that report and only collects the evidence
+  it is missing.
+- **Each turn leaves its own report** in `informes/AAAA-MM-DD/` with the next `<nn>`, citing the
+  previous one in Alcance.
+
+The prompts below assume the agent found what the scenario expects. If it answered something else,
+adapt the follow-up to its answer, but do not name the planted cause: ask for the evidence. Run the
+Spark conversation soon after the History phase, because Spark run details expire after a few hours.
+
+### Conversation A: from the pipeline down to the details
+
+Starts with a broad symptom and drills into Spark configuration, skew, cluster size and tables.
+
+| Turn | Prompt | Scenario | What the agent should add |
+|------|--------|----------|---------------------------|
+| 1 | El pipeline `pl_daily_sales` del workspace FabricPerfLab tarda cada día más. ¿Qué es lo que crece entre ejecuciones? | [1](#1-pipeline-slower-every-day) | Trend per activity and notebook; "Bronze to silver" and its shuffle grow, ingest stays flat; full reload in silver |
+| 2 | Dices que el shuffle de `nb_02` es lo que más crece. ¿Hay data skew o time skew? ¿Qué stages pesan más y qué estrategia usa cada join? | [3](#3-data-skew-time-skew-and-heavy-shuffle) | Max task vs median per stage, sort-merge joins, 2000 near-empty tasks, repeated stages, Python UDF |
+| 3 | ¿Por qué no hace broadcast ni ajusta el skew? Revisa la configuración efectiva de silver y, ya puestos, la de bronze y gold. | [4](#4-spark-configuration-per-medallion-layer) | Declared vs notebook vs effective table per layer; notebook overrides; V-Order and resource profiles |
+| 4 | Gold usa otro pool. ¿Ese clúster está bien dimensionado para lo que hace `nb_03_silver_to_gold`? | [2](#2-oversized-spark-cluster) | Idle cores with fixed Large executors; starter pool or Medium nodes with dynamic allocation; `nb_04` bonus |
+| 5 | Al principio salieron ficheros pequeños y un `_delta_log` muy largo en bronze. ¿Qué tablas de los tres lakehouses necesitan mantenimiento? | [6](#6-delta-tables-that-need-maintenance) | Verdict per table, `dim_date` left alone, VACUUM scheduled rather than run now |
+| 6 | En la tendencia del pipeline había una ejecución rara. ¿Ha fallado algo en FabricPerfLab y qué falta aguas abajo? | [5](#5-spark-failures-and-oom) | Schema drift on run 6, OOM types in `pl_store_snapshot`, cost of the retry |
+
+### Conversation B: from one slow measure up to the whole flow
+
+Starts with one specific measure and widens to the model, its refreshes and the pipeline that feeds
+it.
+
+| Turn | Prompt | Scenario | What the agent should add |
+|------|--------|----------|---------------------------|
+| 1 | La tarjeta de "Avg Ticket" del informe de ventas tarda mucho en cargar. Esta es su consulta: (paste Q1) | [8](#8-dax-performance) (Q1 only) | `Avg Ticket` is the slow measure of Q1, rewrite in `DEFINE` with the same result; the other KPIs are fine |
+| 2 | ¿Y el resto de la página? Estas son las demás consultas: (paste Q2-Q5) | [8](#8-dax-performance) | Slow measures with rewrites; `Enterprise Sales` and `Active Customers` measured and left alone |
+| 3 | Varias medidas filtran sobre `fact_sales` en lugar de una tabla de fechas. ¿El modelo `sm_sales` cumple las buenas prácticas de modelado? | [7](#7-semantic-model-best-practices) | Relationships, data types, calculated columns, date table, measure placement; blank customers traced to the GDPR deletes |
+| 4 | Los usuarios dicen que a veces ven los datos de ayer o el informe da error. ¿Se refresca bien el modelo? | [9](#9-semantic-model-refreshes) | Intermittent `category` failures, unawaited refresh in `nb_04`, schedule misaligned with the pipeline |
+| 5 | Si el refresco depende de `pl_daily_sales`, ¿cómo va ese pipeline y está bien configurada la capa gold que lee el modelo? | [1](#1-pipeline-slower-every-day), [4](#4-spark-configuration-per-medallion-layer) | Growing pipeline and full gold overwrite; gold V-Order and resource profile, and what changes if the model moves to Direct Lake |
+
+In a talk, three or four turns of one conversation are usually enough; each Spark turn takes
+several minutes.
 
 ## Summary
 
@@ -37,8 +85,8 @@ evidence. This file and `demo-setup/` would give them away. While the agent anal
 
 ## 1. Pipeline slower every day
 
-> El pipeline `pl_daily_sales` del workspace FabricPerfLab tarda cada día más (cada ejecución simula
-> un día de negocio). No me vale un umbral de regresión: quiero la tendencia de cada actividad y de
+> El pipeline `pl_daily_sales` del workspace FabricPerfLab tarda cada día más.
+> No me vale un umbral de regresión: quiero la tendencia de cada actividad y de
 > cada notebook entre ejecuciones, incluido el shuffle y el número de jobs de Spark. Revisa cómo lee
 > y escribe cada notebook (carga completa o incremental) y cómo evolucionan las tablas que toca
 > (ficheros, commits y checkpoints del `_delta_log`). ¿Qué crece y por qué?
@@ -180,6 +228,51 @@ fresh setup the expected answer is to schedule it, not to run it now.
 > consultas de la página. Mide cada consulta y cada medida aislada, con trazas si están
 > disponibles, y para las lentas prueba la reescritura en `DEFINE` comprobando que da el mismo
 > resultado. Indica también qué medidas no hace falta tocar.
+
+```DAX
+// Q1 - KPI cards
+EVALUATE
+ROW(
+    "Total Sales", [Total Sales],
+    "Margin %", [Margin %],
+    "Avg Ticket", [Avg Ticket],
+    "Active Customers", [Active Customers]
+)
+
+// Q2 - Sales by store and month
+EVALUATE
+SUMMARIZECOLUMNS(
+    dim_store[store_name],
+    fact_sales[year_month],
+    "Total Sales", [Total Sales],
+    "Enterprise Sales", [Enterprise Sales],
+    "Margin %", [Margin %]
+)
+
+// Q3 - Daily trend with running total
+EVALUATE
+SUMMARIZECOLUMNS(
+    fact_sales[sale_date],
+    "Total Sales", [Total Sales],
+    "Sales Running Total", [Sales Running Total]
+)
+
+// Q4 - Top customers by city
+EVALUATE
+SUMMARIZECOLUMNS(
+    dim_store[city],
+    "Top 100 Customers Sales", [Top 100 Customers Sales]
+)
+
+// Q5 - Category performance with promotions
+EVALUATE
+SUMMARIZECOLUMNS(
+    dim_product[category],
+    promotions[promo_name],
+    "Total Sales", [Total Sales],
+    "Sales LY", [Sales LY]
+)
+```
 
 Give the agent the queries in [`dax/report-queries.dax`](dax/report-queries.dax) (paste them; they
 live in the hidden folder). Traces need the local `powerbi-modeling-mcp` server with its EULA
