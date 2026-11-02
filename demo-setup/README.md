@@ -22,13 +22,13 @@ The History phase takes hours: run it before you start analyzing. The schedules 
 
 ### Or ask the agent to do it
 
-Open Claude Code at the repository root and say, for example:
+Open Claude Code, or a GitHub Copilot chat in VS Code, at the repository root and say, for example:
 
 > Ejecuta `demo-setup/setup.ps1 -CapacityName "<capacidad>" -Phase Deploy -NonInteractive`. Confirmo
 > que puede crear el workspace FabricPerfLab y sus artefactos. Cuando termine, dime qué paso manual
 > me queda y después lanza `-Phase History -NonInteractive` en segundo plano.
 
-The repository's [CLAUDE.md](../CLAUDE.md) forbids writes to Fabric without explicit confirmation,
+The repository's [AGENTS.md](../AGENTS.md) forbids writes to Fabric without explicit confirmation,
 so the prompt must confirm the operation. `-NonInteractive` skips the "press Enter" pause; do the
 [manual step](#manual-step-model-credentials) before the History phase starts, or the model
 refreshes in the history fail with a credentials error.
@@ -115,7 +115,7 @@ every day. When you are done, stop them (next section).
 - [ ] `demo-setup/.state/FabricPerfLab-history.csv` lists the runs; run 6 shows `Failed`.
 - [ ] `pl_store_snapshot` shows two failed runs in the Monitor hub.
 - [ ] `sm_sales` refresh history shows successes and failures (runs 4 and 8).
-- [ ] Inside Claude Code, `/mcp` shows `FabricIQ`, `fabric-sqlendpoint` and `powerbi-modeling-mcp` connected.
+- [ ] `FabricIQ`, `fabric-sqlendpoint` and `powerbi-modeling-mcp` are connected: `/mcp` in Claude Code; in VS Code with GitHub Copilot, **Chat: Open Customizations** > **MCP Servers** (or `copilot mcp list` and `/mcp` in Copilot CLI), with `FABRIC_MCP_TOKEN` set ([README](../README.md#vs-code--github-copilot)).
 - [ ] The agent cannot read `demo-setup/` (see [DEMO-SCENARIOS.md](DEMO-SCENARIOS.md#before-you-run-the-agent)).
 
 ## Stop or remove

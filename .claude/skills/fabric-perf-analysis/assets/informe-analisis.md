@@ -16,7 +16,7 @@ Instrucciones de uso (borrar todos los comentarios al rellenar):
 | **Áreas** | <áreas de análisis recorridas, en orden> |
 | **Ámbito** | workspace `<WORKSPACE>` · <items analizados> |
 | **Ventana analizada** | <AAAA-MM-DD HH:MM> → <AAAA-MM-DD HH:MM> UTC |
-| **Agente / host** | Claude Code \| GitHub Copilot CLI · skills: <skills usadas> |
+| **Agente / host** | Claude Code \| GitHub Copilot (VS Code) \| GitHub Copilot CLI · skills: <skills usadas> |
 | **Modo** | Solo lectura \| Lectura + diagnóstico activo (<Livy, ClearCache>) |
 | **Severidad global** | Alta \| Media \| Baja |
 | **Confianza global** | Alta \| Media \| Baja |

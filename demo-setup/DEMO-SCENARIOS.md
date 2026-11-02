@@ -15,11 +15,13 @@ History phase.
 
 The planted problems are not commented in the item code, so the agent has to find them from
 evidence. This file and `demo-setup/` would give them away. While the agent analyzes, either move
-`demo-setup/` out of the repository or deny the agent access to it in `.claude/settings.local.json`:
+`demo-setup/` out of the repository or, in Claude Code, deny the agent access to it in `.claude/settings.local.json`:
 
 ```json
 { "permissions": { "deny": ["Read(demo-setup/**)", "Grep(demo-setup/**)", "Glob(demo-setup/**)"] } }
 ```
+
+That file is Claude Code only. With GitHub Copilot, move `demo-setup/` out of the repository.
 
 ## Conversations
 
@@ -28,7 +30,7 @@ answered. It shows how the agent pivots between areas instead of answering one l
 
 - **Turn 1** asks the main session for the analysis; it delegates to `FabricPerfAnalyst`.
 - **Later turns** are typed in the same chat. The main session continues the same agent
-  (`SendMessage`) or, if it is no longer available, starts a new one pointing at the previous
+  (`SendMessage` in Claude Code, `write_agent` in GitHub Copilot) or, if it is no longer available, starts a new one pointing at the previous
   report. The agent reuses the scope and findings of that report and only collects the evidence
   it is missing.
 - **Each turn leaves its own report** in `informes/AAAA-MM-DD/` with the next `<nn>`, citing the
@@ -45,11 +47,11 @@ Starts with a broad symptom and drills into Spark configuration, skew, cluster s
 | Turn | Prompt | Scenario | What the agent should add |
 |------|--------|----------|---------------------------|
 | 1 | El pipeline `pl_daily_sales` del workspace FabricPerfLab tarda cada día más. ¿Qué es lo que crece entre ejecuciones? | [1](#1-pipeline-slower-every-day) | Trend per activity and notebook; "Bronze to silver" and its shuffle grow, ingest stays flat; full reload in silver |
-| 2 | Dices que el shuffle de `nb_02` es lo que más crece. ¿Hay data skew o time skew? ¿Qué stages pesan más y qué estrategia usa cada join? | [3](#3-data-skew-time-skew-and-heavy-shuffle) | Max task vs median per stage, sort-merge joins, 2000 near-empty tasks, repeated stages, Python UDF |
-| 3 | ¿Por qué no hace broadcast ni ajusta el skew? Revisa la configuración efectiva de silver y, ya puestos, la de bronze y gold. | [4](#4-spark-configuration-per-medallion-layer) | Declared vs notebook vs effective table per layer; notebook overrides; V-Order and resource profiles |
+| 2 | Dices que el paso de Bronze to silver es el que más crece y que además hay joins con shuffle. ¿Hay data skew o time skew? ¿Qué stages pesan más y qué estrategia usa cada join? | [3](#3-data-skew-time-skew-and-heavy-shuffle) | Max task vs median per stage, sort-merge joins, 2000 near-empty tasks, repeated stages, Python UDF |
+| 3 | Si está desactivado el broadcast y AQE, creo que la configuración no es correcta. Revísala para las tres capas: bronze, silver y gold. | [4](#4-spark-configuration-per-medallion-layer) | Declared vs notebook vs effective table per layer; notebook overrides; V-Order and resource profiles |
 | 4 | Gold usa otro pool. ¿Ese clúster está bien dimensionado para lo que hace `nb_03_silver_to_gold`? | [2](#2-oversized-spark-cluster) | Idle cores with fixed Large executors; starter pool or Medium nodes with dynamic allocation; `nb_04` bonus |
-| 5 | Al principio salieron ficheros pequeños y un `_delta_log` muy largo en bronze. ¿Qué tablas de los tres lakehouses necesitan mantenimiento? | [6](#6-delta-tables-that-need-maintenance) | Verdict per table, `dim_date` left alone, VACUUM scheduled rather than run now |
-| 6 | En la tendencia del pipeline había una ejecución rara. ¿Ha fallado algo en FabricPerfLab y qué falta aguas abajo? | [5](#5-spark-failures-and-oom) | Schema drift on run 6, OOM types in `pl_store_snapshot`, cost of the retry |
+| 5 | Me has comentado de compactar customer, antes de hacerlo me gustaría analizar todo. ¿Qué tablas de los tres lakehouses necesitan mantenimiento? | [6](#6-delta-tables-that-need-maintenance) | Verdict per table, `dim_date` left alone, VACUUM scheduled rather than run now |
+| 6 | También he visto que el pipeline a veces falla, ¿puedes revisar las ejecuciones fallidas y el motivo? | [5](#5-spark-failures-and-oom) | Schema drift on run 6, OOM types in `pl_store_snapshot`, cost of the retry |
 
 ### Conversation B: from one slow measure up to the whole flow
 

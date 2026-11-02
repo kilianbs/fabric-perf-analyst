@@ -7,9 +7,11 @@ montar un agente de IA sobre Microsoft Fabric con el bundle oficial de skills de
 acceder a logs y metadatos en tiempo real. Con el stack montado, puedes diagnosticar un job de Spark
 con cuellos de botella y analizar un modelo semántico.
 
-Claude Code workspace for Microsoft Fabric / Power BI work. Skills and agents come from
+Workspace for Microsoft Fabric / Power BI work with Claude Code or GitHub Copilot (VS Code and
+Copilot CLI). Skills and agents come from
 [`microsoft/skills-for-fabric`](https://github.com/microsoft/skills-for-fabric), installed with
-APM (Agent Package Manager). MCP servers are declared in `.mcp.json`.
+APM (Agent Package Manager). MCP servers are declared in `.mcp.json`, which both hosts read. The
+rules for both hosts are in [`AGENTS.md`](AGENTS.md); `CLAUDE.md` only imports it.
 
 ## Quick start
 
@@ -17,7 +19,8 @@ APM (Agent Package Manager). MCP servers are declared in `.mcp.json`.
 2. Restore the `skills-for-fabric` skills: `apm install --only apm`.
 3. Sign in: `az login` (or `az login --allow-no-subscriptions`).
 4. Start `claude` in the repository root and check with `/mcp` that `FabricIQ`, `fabric-sqlendpoint`
-   and `powerbi-modeling-mcp` are connected.
+   and `powerbi-modeling-mcp` are connected. With GitHub Copilot, follow
+   [VS Code + GitHub Copilot](#vs-code--github-copilot) instead.
 5. Build the lab workspace with planted performance problems:
    `pwsh ./demo-setup/setup.ps1 -CapacityName "<your capacity name>"` ([details](demo-setup/README.md)).
 6. Follow one of the conversations, or ask about each scenario, in
@@ -26,7 +29,8 @@ APM (Agent Package Manager). MCP servers are declared in `.mcp.json`.
 
 ## What this repo adds: `FabricPerfAnalyst`
 
-On top of the bundle, this repo adds one agent ([`.claude/agents/FabricPerfAnalyst.md`](.claude/agents/FabricPerfAnalyst.md))
+On top of the bundle, this repo adds one agent ([`.claude/agents/FabricPerfAnalyst.md`](.claude/agents/FabricPerfAnalyst.md),
+with a GitHub Copilot copy in [`.github/agents/FabricPerfAnalyst.agent.md`](.github/agents/FabricPerfAnalyst.agent.md))
 and one skill ([`.claude/skills/fabric-perf-analysis/`](.claude/skills/fabric-perf-analysis/SKILL.md))
 for performance diagnosis that never changes items or data. They are a thin layer: they point to the bundle's skills and
 do not copy their thresholds, REST routes or procedures.
@@ -52,7 +56,8 @@ The prompt used to generate the agent and the skill is in
 
 | Tool | Purpose | Version used |
 |------|---------|--------------|
-| [Claude Code](https://claude.com/claude-code) | Agent host | 2.1.312 |
+| [Claude Code](https://claude.com/claude-code) | Agent host (option 1) | 2.1.312 |
+| [VS Code](https://code.visualstudio.com/) + GitHub Copilot, or [Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli) | Agent host (option 2), Copilot harness | Copilot CLI 1.0.96 |
 | [APM](https://github.com/microsoft/apm) | Installs the skills from `apm.yml` | 0.35.0 |
 | [Azure CLI (`az`)](https://learn.microsoft.com/cli/azure/install-azure-cli) | Gets Entra ID tokens for the FabricIQ MCP | 2.91.0 |
 | Node.js + `npx` | Runs `@microsoft/powerbi-modeling-mcp` | Node 24.14.0, npx 11.11.0 |
@@ -109,7 +114,10 @@ analysis: the agent reports it in the Notes section of the report.
   Authoring MCP server instead.
 - The Livy guard hook lives in the frontmatter of `.claude/agents/FabricPerfAnalyst.md`. Claude Code
   runs a project agent's frontmatter hooks only after you accept the workspace trust dialog for this
-  folder; until then the agent still runs, without the hook.
+  folder; until then the agent still runs, without the hook. GitHub Copilot behaves the same way with
+  `.github/agents/FabricPerfAnalyst.agent.md`: VS Code needs a trusted workspace, and Copilot CLI
+  needs the folder in its trusted folders. `COPILOT_ALLOW_ALL=true` is not enough, because it only
+  trusts repository hooks, not agent hooks.
 
 ### Quick check
 
@@ -152,11 +160,16 @@ is `fabric-perf-analysis`.
 
 ## MCP servers (`.mcp.json`)
 
-| Server | Type | Auth |
-|--------|------|------|
-| `FabricIQ` | HTTP | Bearer token from `az account get-access-token` via `headersHelper` |
-| `fabric-sqlendpoint` | HTTP | OAuth via `/mcp` |
-| `powerbi-modeling-mcp` | stdio (`npx`) | Local, no OAuth |
+| Server | Type | Auth in Claude Code | Auth in GitHub Copilot |
+|--------|------|---------------------|------------------------|
+| `FabricIQ` | HTTP | Bearer token from `az account get-access-token` via `headersHelper` | `Authorization: Bearer ${FABRIC_MCP_TOKEN}` header |
+| `fabric-sqlendpoint` | HTTP | `headersHelper` (the entry is skipped today, see [Troubleshooting](#troubleshooting)) | `Authorization: Bearer ${FABRIC_MCP_TOKEN}` header |
+| `powerbi-modeling-mcp` | stdio (`npx`) | Local, no OAuth | Local, no OAuth |
+
+Both HTTP servers accept a token for the audience `https://api.fabric.microsoft.com`. Each one has
+the static header and the `headersHelper`. Claude Code runs the helper, and its output overrides
+the static header with the same name, so `FABRIC_MCP_TOKEN` doesn't affect it. Copilot ignores
+`headersHelper` and uses the header with the expanded variable.
 
 ### Why `FabricIQ` uses `headersHelper`
 
@@ -171,21 +184,108 @@ az account get-access-token --resource https://api.fabric.microsoft.com
 
 If the token expires, run `az login` again, then `/mcp` > reconnect `FabricIQ`.
 
+## VS Code + GitHub Copilot
+
+The repository also works with the GitHub Copilot harness, which VS Code (session target
+**Copilot**), the GitHub Copilot app and Copilot CLI share. What it reads:
+
+| Piece | Where Copilot reads it from |
+|-------|-----------------------------|
+| Rules | `AGENTS.md` (and `CLAUDE.md`, which only imports it) |
+| Skills | `.claude/skills/` (Copilot reads it natively; `apm install --only apm` as for Claude). The `--target claude,copilot` from the skills-for-fabric docs also copies them to `.agents/skills/` (git-ignored). It isn't needed: Copilot reads both folders and shows each skill once. |
+| Bundle agents | `.claude/agents/` |
+| `FabricPerfAnalyst` | `.github/agents/FabricPerfAnalyst.agent.md`, which wins over the `.claude/` copy with the same name |
+| MCP servers | `.mcp.json` |
+
+### Livy guard in VS Code
+
+The Copilot copy of `FabricPerfAnalyst` declares the same hook in its frontmatter:
+`python .claude/hooks/livy_readonly_guard.py --format copilot`. There is still only one script: in
+agent-scoped hooks, paths resolve from the repository root, so the hook doesn't need copying to
+`.github/`. Don't put it in `.github/hooks/`, because Copilot treats any `*.json` there as a hook for
+the whole repository.
+
+| VS Code session target | What the hook receives | How it blocks | Verified |
+|------------------------|------------------------|---------------|----------|
+| **Copilot** (same harness as Copilot CLI) | `tool_name` `Bash` (`powershell` and `bash` tools), `write_powershell`, `write_bash` | top-level `permissionDecision: "deny"` | Yes: a VS Code session and `copilot --agent FabricPerfAnalyst` |
+| **Local** (legacy) | `tool_name` `run_in_terminal`, `send_to_terminal` | `hookSpecificOutput.permissionDecision: "deny"` | Only with test payloads; needs `chat.useHooks` |
+
+With `--format copilot` the hook prints a single JSON object with both decisions and exits 0, so
+the block reason reaches the model in either session target. Without `--format copilot`, or with
+Claude's `$CLAUDE_PROJECT_DIR`, the hook fails in Copilot and Copilot denies every shell command for
+the agent with "hook errored". Use the **Copilot** session target: in **Local**, VS Code also sees
+the `.claude/agents/` copy, whose hook uses `$CLAUDE_PROJECT_DIR`.
+
+### Start
+
+1. `apm install --only apm` and `az login`, as for Claude Code.
+2. Close **every** VS Code window. A new `code` reuses the running process and does not inherit
+   the variable. Then, from the same terminal:
+
+   ```powershell
+   $env:FABRIC_MCP_TOKEN = az account get-access-token --resource https://api.fabric.microsoft.com --query accessToken -o tsv
+   code .
+   ```
+
+   ```bash
+   export FABRIC_MCP_TOKEN=$(az account get-access-token --resource https://api.fabric.microsoft.com --query accessToken -o tsv)
+   code .
+   ```
+
+   With Copilot CLI, set the same variable and run `copilot` instead of `code .`.
+3. Trust the folder when VS Code or Copilot CLI asks. Without trust, the agent runs without the
+   Livy guard.
+4. In the Chat view, choose **Copilot** as the session target. Check in **Chat: Open
+   Customizations** > **MCP Servers** that `FabricIQ`, `fabric-sqlendpoint` and
+   `powerbi-modeling-mcp` are connected; in Copilot CLI, `/mcp`.
+5. Ask for the analysis in the chat. The main session delegates it to `FabricPerfAnalyst`, as in
+   Claude Code, or you can pick the agent in the agents dropdown (in Copilot CLI,
+   `/agent FabricPerfAnalyst` or `copilot --agent FabricPerfAnalyst`).
+
+The token lasts about an hour. When it expires, `FabricIQ` and `fabric-sqlendpoint` return 401:
+repeat step 2.
+
+### Limitations
+
+- `FABRIC_MCP_TOKEN` is a bearer token in the environment of VS Code or the CLI and their child
+  processes. Don't put it in any file or commit it.
+- If the variable is missing, Copilot sends `Bearer ` with no token, the servers return 401, and
+  Copilot tries browser OAuth, which fails because Entra has no dynamic client registration. The
+  agent records it under Notas as a missing MCP.
+- An alternative not tested in this repository: VS Code's built-in Microsoft authentication for
+  MCP servers declared in `.vscode/mcp.json`. It would need other server names so they don't clash
+  with `.mcp.json`.
+- The Claude-only `.claude/settings.local.json` deny rule from
+  [DEMO-SCENARIOS.md](demo-setup/DEMO-SCENARIOS.md#before-you-run-the-agent) has no equivalent here:
+  move `demo-setup/` out of the repository.
+
 ## Useful commands
 
 ```bash
-claude mcp list          # Connection status of all MCP servers
+claude mcp list          # Connection status of all MCP servers (Claude Code)
+copilot mcp list         # MCP servers configured for the Copilot harness
 apm --version            # Check the APM version
 apm install --only apm   # Restore the skills and apm_modules/ from apm.lock.yaml
 az account show          # Confirm which account/tenant you are signed in with
 ```
 
 Inside Claude Code: `/mcp` (manage servers), `/reload-plugins` (reload plugins and skills).
+Inside Copilot CLI: `/mcp`, `/agent`, `/skills`.
 
 ## Troubleshooting
 
 - **FabricIQ fails with a dynamic client registration error**: make sure `headersHelper` is set
   in `.mcp.json` and `az login` is valid.
+- **Copilot: `FabricIQ` or `fabric-sqlendpoint` asks for browser OAuth or doesn't connect**:
+  `FABRIC_MCP_TOKEN` is missing or expired in the VS Code or CLI process. Repeat step 2 of
+  [Start](#start).
+- **Copilot: every shell command of `FabricPerfAnalyst` is denied with "hook errored"**: the hook
+  is running without `--format copilot` or can't find `python`. Check the frontmatter of
+  `.github/agents/FabricPerfAnalyst.agent.md`.
+- **Copilot: the hook doesn't fire** (a Livy write is not blocked): the folder isn't trusted
+  (VS Code: Workspace Trust; Copilot CLI: `trustedFolders`). In Copilot CLI the debug log shows
+  `agent hooks deferred until their workspace is trusted`. In the VS Code **Local** session target,
+  also check `chat.useHooks`.
 - **Duplicate servers**: the `fabric-skills` plugin declares the same three servers. If both the
   plugin and this `.mcp.json` are active you will see duplicates (`plugin:fabric-skills:*` and
   the project ones).

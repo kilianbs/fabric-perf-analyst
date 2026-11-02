@@ -5,6 +5,8 @@ apm_modules/
 # Only this repository's own skill is versioned.
 .claude/skills/*
 !.claude/skills/fabric-perf-analysis/
+# Deployed by the `copilot` APM target (`--target claude,copilot`); Copilot already reads .claude/skills/.
+.agents/
 
 # Local tooling and editor settings
 .atl/
