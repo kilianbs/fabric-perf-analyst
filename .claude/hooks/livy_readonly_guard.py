@@ -2,8 +2,9 @@
 
 FabricPerfAnalyst runs diagnostic Livy statements (DESCRIBE DETAIL, EXPLAIN, bounded SELECT)
 without asking for confirmation. This hook is the deterministic limit behind that autonomy. It is
-declared only in the agent's frontmatter (.claude/agents/FabricPerfAnalyst.md), so it runs only while
-that agent runs and never constrains the main session or other agents. It is an allowlist, not a
+declared only in the agent's frontmatter (.claude/agents/FabricPerfAnalyst.md for Claude Code,
+.github/agents/FabricPerfAnalyst.agent.md for GitHub Copilot), so it runs only while that agent runs
+and never constrains the main session or other agents. It is an allowlist, not a
 keyword denylist:
 
 - A command that submits to a Livy statements endpoint must be `az rest ... --body @<file>` with a
@@ -15,7 +16,20 @@ keyword denylist:
 - Each SQL statement must start with DESCRIBE, DESC, SHOW, EXPLAIN, SELECT or WITH, or be a
   `SET <key>` without a value.
 
-Exit code 2 blocks the tool call and returns stderr to the model.
+Hosts. All of them send the `PreToolUse` payload in snake_case (`tool_name`, `tool_input`, `cwd`),
+but tool names and the block signal differ:
+
+| Host | Shell tools (`tool_name`) | Block signal |
+|------|---------------------------|--------------|
+| Claude Code (default) | `Bash`, `PowerShell` | exit code 2, reason on stderr |
+| GitHub Copilot harness: VS Code session target "Copilot", Copilot CLI | `Bash` (its `bash` and `powershell` tools), `write_bash`, `write_powershell` | top-level `permissionDecision` |
+| VS Code session target "Local" | `run_in_terminal`, `send_to_terminal` | `hookSpecificOutput.permissionDecision` |
+
+With `--format copilot` the hook prints one JSON object with the decision in both places and exits
+0, so a block shows its reason in both VS Code harnesses (a non-zero exit would surface in Copilot
+as a generic "hook errored"). An allowed call prints `{}`: no decision, the normal permission flow
+continues. The Copilot copy of the agent (.github/agents/FabricPerfAnalyst.agent.md) runs it with
+`--format copilot`; the Claude Code copy runs it without flags.
 """
 
 import ast
@@ -27,8 +41,21 @@ import subprocess
 import sys
 from pathlib import Path
 
-SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
+# tool_name -> tool_input field that holds the shell text.
+SHELL_TOOLS = {
+    "Bash": "command",
+    "PowerShell": "command",
+    "bash": "command",
+    "powershell": "command",
+    "write_bash": "input",
+    "write_powershell": "input",
+    "run_in_terminal": "command",
+    "send_to_terminal": "command",
+}
 BLOCK = 2
+COPILOT = "--format=copilot" in sys.argv or (
+    "--format" in sys.argv[:-1] and sys.argv[sys.argv.index("--format") + 1] == "copilot"
+)
 
 # Livy statement endpoint: .../livyapi/versions/<v>/sessions/<id>/statements[/<n>[/cancel]].
 STATEMENTS_URL = re.compile(r"/sessions/[^/\s\"']+/statements\b", re.IGNORECASE)
@@ -60,16 +87,33 @@ class Rejected(Exception):
 
 
 def block(reason: str) -> int:
-    print(
+    message = (
         f"Blocked by livy_readonly_guard: {reason}. Livy statements are allowlisted read-only "
         "diagnostics (agent FabricPerfAnalyst, Action tiers, Livy guard): submit them with "
         "`az rest --method post --body @<file>` and a pyspark body that only calls spark.sql() "
         "with DESCRIBE, SHOW, EXPLAIN, SELECT or WITH and read methods. Never rephrase a write to "
         "get past this check; if a read is blocked, simplify it or record it under "
-        "Notas > Datos no obtenidos.",
-        file=sys.stderr,
+        "Notas > Datos no obtenidos."
     )
+    if COPILOT:
+        print(json.dumps({
+            "permissionDecision": "deny",
+            "permissionDecisionReason": message,
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": message,
+            },
+        }))
+        return 0
+    print(message, file=sys.stderr)
     return BLOCK
+
+
+def allow() -> int:
+    if COPILOT:
+        print("{}")
+    return 0
 
 
 # SQL allowlist.
@@ -234,15 +278,19 @@ def main() -> int:
         payload = json.loads(raw)
     except json.JSONDecodeError:
         # Fail closed only where this guard applies.
-        return block("hook input is not valid JSON") if "statements" in raw.lower() else 0
-    if payload.get("tool_name") not in SHELL_TOOLS:
-        return 0
-    command = (payload.get("tool_input") or {}).get("command") or ""
+        return block("hook input is not valid JSON") if "statements" in raw.lower() else allow()
+    field = SHELL_TOOLS.get(payload.get("tool_name"))
+    if field is None:
+        return allow()
+    tool_input = payload.get("tool_input") or {}
+    command = tool_input.get(field) if isinstance(tool_input, dict) else None
+    if not isinstance(command, str):
+        command = ""
     try:
         check(command, payload.get("cwd"))
     except Rejected as error:
         return block(str(error))
-    return 0
+    return allow()
 
 
 if __name__ == "__main__":
