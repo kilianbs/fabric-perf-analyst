@@ -1,0 +1,77 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "4d8f3b0e6a5c7d9f1b04",
+  "position": {
+    "x": 20,
+    "y": 424,
+    "z": 4000,
+    "height": 276,
+    "width": 610,
+    "tabOrder": 4000
+  },
+  "visual": {
+    "visualType": "clusteredBarChart",
+    "query": {
+      "queryState": {
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Property": "Top 100 Customers Sales",
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_sales"
+                    }
+                  }
+                }
+              },
+              "queryRef": "fact_sales.Top 100 Customers Sales",
+              "nativeQueryRef": "Top 100 Customers Sales"
+            }
+          ]
+        },
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Property": "city",
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_store"
+                    }
+                  }
+                }
+              },
+              "queryRef": "dim_store.city",
+              "nativeQueryRef": "city"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Top 100 customers sales by city'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

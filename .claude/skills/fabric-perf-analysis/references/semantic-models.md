@@ -8,6 +8,7 @@ Power BI semantic models in Fabric workspaces: modeling best practices, DAX quer
 
 - "Review this model against best practices."
 - "This DAX measure / report page is slow."
+- "The page X of report Y is slow" (no DAX given: rebuild the visual queries from the report, see § 4).
 - "The refresh of the model failed / takes longer every day."
 - "Is the Direct Lake model falling back to DirectQuery?"
 - "Why does the report get slower after each load of the Gold layer?"
@@ -30,6 +31,8 @@ Base path: `.claude/skills/semantic-model-authoring/`.
 | `references/modeling-guidelines.md` | Rules the best-practice review checks, including its numeric review thresholds (§ Table Columns, § Relationships, § Performance Guidelines). |
 | `references/semantic-model-rest-api.md` § Authentication & API Audiences, § Refresh Operations (Power BI Datasets API), § Refresh History Response Properties, § Execute DAX Queries (Power BI Datasets API), § Properties Retrieval | REST routes, audiences, executeQueries limits, refresh history fields. |
 | `references/connection-binding.md` § Troubleshooting | Bind succeeds but refresh fails. |
+| `.claude/skills/powerbi-report-cli/references/management-part-02.md` § Get Report Definition (header `x-ms-fabric-skill=powerbi-report-cli`) | Report definition download: `POST /v1/workspaces/{ws}/reports/{id}/getDefinition?format=PBIR`, LRO, required permissions. |
+| `.claude/skills/powerbi-report-cli/references/authoring-part-02.md` § PBIR File Layout; `authoring/expressions.md` | Where pages and visuals live in the definition and how a field is encoded in `visual.json` (`Column`, `Measure`, `Aggregation`, `HierarchyLevel`). |
 
 ## 4. Signals to measure
 
@@ -37,6 +40,7 @@ Base path: `.claude/skills/semantic-model-authoring/`.
 |--------|---------------|----------------------------|
 | Model inventory and size (tables, columns, measures, relationships, storage mode) | `INFO.VIEW.*` via `dax_query_operations`; MCP List/Get if the user has Write | `modeling-guidelines.md` thresholds |
 | Query duration, SE/FE split, SE query count, cache hits | Trace on the workspace XMLA endpoint (powerbi-modeling-mcp trace) | `dax-perf-decision-guide.md` § Section 2 |
+| Queries of a report page (when the user names a report or page instead of giving DAX) | List the workspace items of type `Report`, read the definition (`getDefinition?format=PBIR`), decode the parts of the page (`page.json`, `visuals/*/visual.json`). Per visual, one query: grouping columns from `visual.query.queryState` (`Rows`, `Columns`, `Category`, `Series`, grouping fields in `Values`) and its measures (`Measure` fields, `Aggregation` as `SUM`/`AVERAGE`/... of the column) in `SUMMARIZECOLUMNS`; a card with no grouping is `ROW`. Add the report, page and visual filters (`filterConfig`) as filter arguments. Record each rebuilt query as an E# with the visual it comes from | Then measure each one with the protocol below; the slowest visuals are the first candidates |
 | Baseline vs candidate timing | DAX query with measures inlined in `DEFINE`, protocol of § Phase 1 | Dispersion and noise-band rules in § Phase 1 / § Phase 2 |
 | Refresh history (status, duration trend, error code) | Refresh history route in `semantic-model-rest-api.md` (Power BI audience) | Compare durations across runs; error codes per § TROUBLESHOOTING |
 | Storage mode and Direct Lake flavour | Model properties / partitions | Direct Lake on SQL can fall back; Direct Lake on OneLake cannot (Learn, see traps) |
@@ -52,6 +56,7 @@ Base path: `.claude/skills/semantic-model-authoring/`.
 - **Auto-apply is overridden.** Tier 1 "Auto-apply" in `dax-perf-decision-guide.md` § Tiers and Autonomy and the banner in `dax-perf-patterns.md` § Section 3 do not apply to this agent: the workflow ends at the Phase 2 comparison. Analyze Best Practices ends at step 4 "Present findings"; steps 5-6 are never run.
 - **Severity labels are not criteria.** The skill groups findings as critical / recommended / optional without defining them. Map critical → Alta, recommended → Media, optional → Baja, cite `SKILL.md` § Workflow: Analyze Best Practices, and justify each mapping with measured impact.
 - **Credential errors stop the refresh line of analysis.** On a credential error in refresh history, stop that line and report it (`SKILL.md` § Workflow: Refresh Semantic Model). Do not retry, rebind or edit data sources.
+- **Rebuilt visual queries are approximations.** A query rebuilt from `visual.json` has the visual's fields, measures and filters, but not what Power BI adds when it renders (data-reduction `TOPN`/windows, sort, subtotals, visual calculations, cross-filters from other visuals). State it in Notas › Limitaciones. If the user supplies a query captured with Performance Analyzer, measure that one instead. Reading the definition needs write permission on the report (`management-part-02.md` § Get Report Definition); without it, ask for the queries and record the gap in Notas.
 - **Some POSTs are reads.** `getDefinition` and `executeQueries` are POST but read-only (`semantic-model-rest-api.md` § TMDL Definition CRUD, § Execute DAX Queries). Everything else that is POST, PUT, PATCH or DELETE in that file is a write.
 - **Broken anchors.** Some in-file anchors in the skill point to non-existent numbered headings; cite headings by text.
 

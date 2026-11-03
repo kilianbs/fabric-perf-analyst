@@ -1,137 +1,142 @@
-# demo-setup: FabricPerfLab workspace
+# demo-setup: workspace FabricPerfLab
 
-Scripts that build a Fabric workspace to analyze with the `FabricPerfAnalyst` agent: a medallion
-lakehouse with Spark pipelines, Delta tables and an Import semantic model. Each item carries known
-performance problems, and the script runs the pipelines several times so there is history to
-analyze. The demo conversations and what each scenario expects to find are in [DEMO-SCENARIOS.md](DEMO-SCENARIOS.md) (keep it
-away from the agent while it analyzes).
+Scripts que crean un workspace de Fabric para analizarlo con el agente `FabricPerfAnalyst`: un lakehouse
+medallion con pipelines de Spark, tablas Delta y un modelo semántico Import. Cada item lleva problemas
+de rendimiento conocidos, y el script ejecuta los pipelines varias veces para que haya historial que
+analizar. Las conversaciones de la demo y lo que debería encontrarse en cada escenario están en
+[DEMO-SCENARIOS.md](DEMO-SCENARIOS.md) (mantenlo fuera del alcance del agente mientras analiza).
 
-## Quick path
+## Camino rápido
 
 ```powershell
-az login                                   # or: az login --allow-no-subscriptions
-pwsh ./demo-setup/setup.ps1 -CapacityName "<your capacity name>"
+az login                                   # o bien: az login --allow-no-subscriptions
+pwsh ./demo-setup/setup.ps1 -CapacityName "<nombre de tu capacidad>"
 ```
 
-1. **Deploy** (about 5 minutes): creates the workspace and every item.
-2. **Manual step**: the script stops and asks you to set the model credentials ([below](#manual-step-model-credentials)).
-3. **History** (hours, see [Timing](#timing-and-cost)): runs the daily pipeline once per simulated day, then the failing export twice.
-4. **Schedule**: daily pipeline at 06:00 and model refresh at 05:30 and 06:30.
+1. **Deploy** (unos 5 minutos): crea el workspace y todos los items.
+2. **Paso manual**: el script se detiene y te pide que configures las credenciales del modelo ([más abajo](#paso-manual-credenciales-del-modelo)).
+3. **History** (horas, ver [Tiempos y coste](#tiempos-y-coste)): ejecuta el pipeline diario una vez por día simulado y después la exportación que falla, dos veces.
+4. **Schedule**: pipeline diario a las 06:00 y refresco del modelo a las 05:30 y 06:30.
 
-The History phase takes hours: run it before you start analyzing. The schedules then add real daily runs on top.
+La fase History tarda horas: lánzala antes de empezar a analizar. Después, las programaciones añaden
+ejecuciones diarias reales.
 
-### Or ask the agent to do it
+### O pídeselo al agente
 
-Open Claude Code, or a GitHub Copilot chat in VS Code, at the repository root and say, for example:
+Abre Claude Code, o un chat de GitHub Copilot en VS Code, en la raíz del repositorio y di, por ejemplo:
 
 > Ejecuta `demo-setup/setup.ps1 -CapacityName "<capacidad>" -Phase Deploy -NonInteractive`. Confirmo
 > que puede crear el workspace FabricPerfLab y sus artefactos. Cuando termine, dime qué paso manual
 > me queda y después lanza `-Phase History -NonInteractive` en segundo plano.
 
-The repository's [AGENTS.md](../AGENTS.md) forbids writes to Fabric without explicit confirmation,
-so the prompt must confirm the operation. `-NonInteractive` skips the "press Enter" pause; do the
-[manual step](#manual-step-model-credentials) before the History phase starts, or the model
-refreshes in the history fail with a credentials error.
+El [AGENTS.md](../AGENTS.md) del repositorio prohíbe escribir en Fabric sin confirmación explícita,
+así que el prompt debe confirmar la operación. `-NonInteractive` omite la pausa de "pulsa Enter"; haz el
+[paso manual](#paso-manual-credenciales-del-modelo) antes de que empiece la fase History, o los
+refrescos del modelo del historial fallarán con un error de credenciales.
 
-## What gets created
+## Qué se crea
 
-| Item | Name | Role in the scenarios |
-|------|------|-------------------|
-| Workspace | `FabricPerfLab` | Container, on your capacity |
-| Lakehouse | `lh_bronze`, `lh_silver`, `lh_gold` | Medallion layers (no schemas, tables under `dbo`) |
-| Spark pool | `pool_gold_xl` | Custom pool used by the gold environment |
-| Environment | `env_bronze`, `env_silver`, `env_gold` | Spark settings per layer |
-| Notebook | `nb_01_ingest_bronze` | Generates one business day of synthetic data |
-| Notebook | `nb_02_bronze_to_silver` | Deduplication, joins, customer MERGE |
-| Notebook | `nb_03_silver_to_gold` | Star schema for the model |
-| Notebook | `nb_04_refresh_model` | Requests the model refresh |
-| Notebook | `nb_05_store_snapshot` | Per-store export (fails on purpose) |
+| Item | Nombre | Papel en los escenarios |
+|------|--------|-------------------------|
+| Workspace | `FabricPerfLab` | Contenedor, en tu capacidad |
+| Lakehouse | `lh_bronze`, `lh_silver`, `lh_gold` | Capas medallion (sin esquemas, tablas en `dbo`) |
+| Spark pool | `pool_gold_xl` | Pool personalizado que usa el environment de gold |
+| Environment | `env_bronze`, `env_silver`, `env_gold` | Configuración de Spark por capa |
+| Notebook | `nb_01_ingest_bronze` | Genera un día de negocio de datos sintéticos |
+| Notebook | `nb_02_bronze_to_silver` | Deduplicación, joins, MERGE de clientes |
+| Notebook | `nb_03_silver_to_gold` | Esquema en estrella para el modelo |
+| Notebook | `nb_04_refresh_model` | Solicita el refresco del modelo |
+| Notebook | `nb_05_store_snapshot` | Exportación por tienda (falla a propósito) |
 | Pipeline | `pl_daily_sales` | nb_01 → nb_02 → nb_03 → nb_04 |
-| Pipeline | `pl_store_snapshot` | nb_05 with parameter `export_format` |
-| Semantic model | `sm_sales` | Import model over the `lh_gold` SQL endpoint |
+| Pipeline | `pl_store_snapshot` | nb_05 con el parámetro `export_format` |
+| Modelo semántico | `sm_sales` | Modelo Import sobre el SQL endpoint de `lh_gold` |
+| Informe | `rpt_sales` | Página "Sales overview" sobre `sm_sales`; el agente lee sus visuales para construir las consultas DAX |
 
-Local files: [`items/`](items/) holds every definition (readable Python, JSON, YAML and TMDL), and
-[`dax/report-queries.dax`](dax/report-queries.dax) holds the queries of a typical report page. The
-script writes item IDs and a run log to `demo-setup/.state/` (git-ignored).
+Ficheros locales: [`items/`](items/) contiene todas las definiciones (Python, JSON, YAML, TMDL legibles y el
+informe PBIR), y [`dax/report-queries.dax`](dax/report-queries.dax) contiene las consultas de la página de
+`rpt_sales`, una por visual. El script escribe los IDs de los items y un log de ejecuciones en
+`demo-setup/.state/` (en el `.gitignore`).
 
-## Prerequisites
+## Requisitos previos
 
-Everything in the root [README.md](../README.md#requirements), plus:
+Todo lo del [README.md](../README.md#requisitos) raíz, y además:
 
-| Requirement | Why |
-|-------------|-----|
-| PowerShell 7.2+ (`pwsh`) | The scripts use PowerShell 7 syntax. Windows PowerShell 5.1 does not work. |
-| Fabric capacity, **trial F64 recommended** | Spark sessions, a Large-node pool and an Import model of several million rows. On a small capacity use `-GoldPoolNodeSize Medium -GoldPoolMaxNodes 3`. |
-| Permission to create workspaces and assign them to the capacity | Tenant setting for workspace creation, and Contributor (or admin) on the capacity. |
-| Workspace setting *Customize compute configurations for items* enabled | Needed for the custom pool and environments. It is on by default. |
-| Capacity setting **XMLA endpoint: Read Write** | Only for the semantic model scenarios (see the root README). |
+| Requisito | Por qué |
+|-----------|---------|
+| PowerShell 7.2+ (`pwsh`) | Los scripts usan sintaxis de PowerShell 7. Windows PowerShell 5.1 no sirve. |
+| Capacidad de Fabric, **se recomienda trial F64** | Sesiones de Spark, un pool de nodos Large y un modelo Import de varios millones de filas. En una capacidad pequeña usa `-GoldPoolNodeSize Medium -GoldPoolMaxNodes 3`. |
+| Permiso para crear workspaces y asignarlos a la capacidad | Ajuste del tenant para crear workspaces, y Contributor (o administrador) en la capacidad. |
+| Ajuste del workspace *Customize compute configurations for items* activado | Necesario para el pool personalizado y los environments. Viene activado por defecto. |
+| Ajuste de la capacidad **XMLA endpoint: Read Write** | Solo para los escenarios del modelo semántico (ver el README raíz). |
 
-## Manual step: model credentials
+## Paso manual: credenciales del modelo
 
-`sm_sales` is an Import model, so Power BI needs credentials for the `lh_gold` SQL endpoint, and
-the API cannot set an OAuth2 sign-in for you. Once, after Deploy:
+`sm_sales` es un modelo Import, así que Power BI necesita credenciales para el SQL endpoint de `lh_gold`,
+y la API no puede configurar por ti un inicio de sesión OAuth2. Una sola vez, después de Deploy:
 
-1. Open the URL the script prints (`app.powerbi.com/groups/<ws>/settings/datasets/<model>`).
-2. **Data source credentials** → **Edit credentials** → Authentication method **OAuth2** → **Sign in**.
+1. Abre la URL que imprime el script (`app.powerbi.com/groups/<ws>/settings/datasets/<model>`).
+2. **Data source credentials** → **Edit credentials** → método de autenticación **OAuth2** → **Sign in**.
 
-Then run `-Phase Schedule` again if it warned that the refresh schedule was not enabled.
+Después vuelve a ejecutar `-Phase Schedule` si avisó de que no se activó la programación de refresco.
 
-## Phases and parameters
+## Fases y parámetros
 
-Each phase can run alone with `-Phase Deploy|History|Schedule`. Deploy is idempotent: it matches
-items by name and updates their definitions, so it is safe to re-run after editing `items/`.
+Cada fase se puede ejecutar sola con `-Phase Deploy|History|Schedule`. Deploy es idempotente: localiza
+los items por nombre y actualiza sus definiciones, así que se puede repetir sin riesgo después de editar
+`items/`. `-Phase Report` despliega solo `rpt_sales` sobre un workspace ya desplegado (encuentra
+`sm_sales` por nombre), sin volver a enviar la definición del modelo.
 
-| Parameter | Default | Effect |
-|-----------|---------|--------|
-| `-WorkspaceName` | `FabricPerfLab` | Workspace to create or reuse |
-| `-CapacityName` / `-CapacityId` | none | Needed only when the workspace does not exist yet |
-| `-SimulatedDays` | `10` | Pipeline runs in the History phase (one business day each) |
-| `-RowsPerDay` | `1000000` | Sales rows generated per run |
-| `-GoldPoolNodeSize` / `-GoldPoolMaxNodes` | `Large` / `4` | Size of `pool_gold_xl` (gold uses max nodes − 1 fixed executors) |
-| `-PipelineTime` | `06:00` | Daily schedule of `pl_daily_sales` |
-| `-ModelRefreshTimes` | `05:30`, `06:30` | Model refresh schedule (Power BI only accepts :00 and :30) |
-| `-TimeZoneId` | `Romance Standard Time` | Windows time zone ID for both schedules |
-| `-ScheduleDays` | `30` | When the pipeline schedule ends |
-| `-SkipSnapshotFailures` | off | Skips the two failing `pl_store_snapshot` runs |
-| `-NonInteractive` | off | No pauses; for the agent or CI |
+| Parámetro | Valor por defecto | Efecto |
+|-----------|-------------------|--------|
+| `-WorkspaceName` | `FabricPerfLab` | Workspace que se crea o se reutiliza |
+| `-CapacityName` / `-CapacityId` | ninguno | Solo hace falta cuando el workspace aún no existe |
+| `-SimulatedDays` | `10` | Ejecuciones del pipeline en la fase History (un día de negocio cada una) |
+| `-RowsPerDay` | `1000000` | Filas de ventas generadas por ejecución |
+| `-GoldPoolNodeSize` / `-GoldPoolMaxNodes` | `Large` / `4` | Tamaño de `pool_gold_xl` (gold usa máx. nodos − 1 ejecutores fijos) |
+| `-PipelineTime` | `06:00` | Programación diaria de `pl_daily_sales` |
+| `-ModelRefreshTimes` | `05:30`, `06:30` | Programación de refresco del modelo (Power BI solo acepta :00 y :30) |
+| `-TimeZoneId` | `Romance Standard Time` | ID de zona horaria de Windows para ambas programaciones |
+| `-ScheduleDays` | `30` | Cuándo termina la programación del pipeline |
+| `-SkipSnapshotFailures` | desactivado | Omite las dos ejecuciones fallidas de `pl_store_snapshot` |
+| `-NonInteractive` | desactivado | Sin pausas; para el agente o CI |
 
-Re-running History adds more days: the day counter lives in `lh_bronze.ctl_pipeline_runs`.
+Repetir History añade más días: el contador de días vive en `lh_bronze.ctl_pipeline_runs`.
 
-## Timing and cost
+## Tiempos y coste
 
-Not measured yet: the durations below are estimates, check them on your capacity.
+Aún sin medir: las duraciones siguientes son estimaciones, compruébalas en tu capacidad.
 
-| Phase | Estimate | Note |
-|-------|----------|------|
-| Deploy | 5–10 min | Waits for the SQL endpoint and the environment publishes |
-| History | several hours for 10 days | Each run is slower than the previous one (that is the demo) |
-| Schedule | under 1 min | Then one pipeline run and two model refreshes per day |
+| Fase | Estimación | Nota |
+|------|------------|------|
+| Deploy | 5–10 min | Espera al SQL endpoint y a la publicación de los environments |
+| History | varias horas para 10 días | Cada ejecución es más lenta que la anterior (esa es la demo) |
+| Schedule | menos de 1 min | Después, una ejecución del pipeline y dos refrescos del modelo al día |
 
-The History phase consumes Spark CU for its whole duration, and the schedules keep consuming
-every day. When you are done, stop them (next section).
+La fase History consume CU de Spark durante toda su duración, y las programaciones siguen consumiendo
+cada día. Cuando termines, detenlas (siguiente sección).
 
-## Check before analyzing
+## Comprobación antes de analizar
 
-- [ ] `demo-setup/.state/FabricPerfLab-history.csv` lists the runs; run 6 shows `Failed`.
-- [ ] `pl_store_snapshot` shows two failed runs in the Monitor hub.
-- [ ] `sm_sales` refresh history shows successes and failures (runs 4 and 8).
-- [ ] `FabricIQ`, `fabric-sqlendpoint` and `powerbi-modeling-mcp` are connected: `/mcp` in Claude Code; in VS Code with GitHub Copilot, **Chat: Open Customizations** > **MCP Servers** (or `copilot mcp list` and `/mcp` in Copilot CLI), with `FABRIC_MCP_TOKEN` set ([README](../README.md#vs-code--github-copilot)).
-- [ ] The agent cannot read `demo-setup/` (see [DEMO-SCENARIOS.md](DEMO-SCENARIOS.md#before-you-run-the-agent)).
+- [ ] `demo-setup/.state/FabricPerfLab-history.csv` lista las ejecuciones; la ejecución 6 aparece como `Failed`.
+- [ ] `pl_store_snapshot` muestra dos ejecuciones fallidas en el Monitor hub.
+- [ ] El historial de refrescos de `sm_sales` muestra éxitos y fallos (ejecuciones 4 y 8).
+- [ ] `FabricIQ`, `fabric-sqlendpoint` y `powerbi-modeling-mcp` están conectados: `/mcp` en Claude Code; en VS Code con GitHub Copilot, **Chat: Open Customizations** > **MCP Servers** (o `copilot mcp list` y `/mcp` en Copilot CLI), con `FABRIC_MCP_TOKEN` definido ([README](../README.md#vs-code--github-copilot)).
+- [ ] El agente no puede leer `demo-setup/` (ver [DEMO-SCENARIOS.md](DEMO-SCENARIOS.md#antes-de-ejecutar-el-agente)).
 
-## Stop or remove
+## Detener o eliminar
 
 ```powershell
-pwsh ./demo-setup/teardown.ps1 -DisableSchedules   # keep everything, stop daily runs
-pwsh ./demo-setup/teardown.ps1                     # delete the workspace (asks you to type its name)
+pwsh ./demo-setup/teardown.ps1 -DisableSchedules   # lo conserva todo y detiene las ejecuciones diarias
+pwsh ./demo-setup/teardown.ps1                     # borra el workspace (pide que escribas su nombre)
 ```
 
-## Troubleshooting
+## Solución de problemas
 
-| Symptom | Likely cause and fix |
-|---------|----------------------|
-| `Not signed in` / HTTP 401 | Run `az login` again; with no Azure subscription, `az login --allow-no-subscriptions`. |
-| `Capacity '...' not found` | The name must match the capacity display name exactly, or pass `-CapacityId`. The capacity must be active. |
-| Pool creation fails with a node size error | The capacity is too small for Large nodes: `-GoldPoolNodeSize Medium -GoldPoolMaxNodes 3`. |
-| Environment publish fails | Open the environment in the portal: the error is shown there. With `instance_pool_id: null`, bronze and silver use the starter pool. |
-| Every model refresh fails with a credentials error | The manual step was skipped. |
-| `nb_05` "nested" export succeeds | Not enough data in the hot store yet; run more History days or raise `-RowsPerDay`. |
+| Síntoma | Causa probable y solución |
+|---------|---------------------------|
+| `Not signed in` / HTTP 401 | Vuelve a ejecutar `az login`; sin suscripción de Azure, `az login --allow-no-subscriptions`. |
+| `Capacity '...' not found` | El nombre debe coincidir exactamente con el nombre visible de la capacidad, o pasa `-CapacityId`. La capacidad debe estar activa. |
+| La creación del pool falla con un error de tamaño de nodo | La capacidad es demasiado pequeña para nodos Large: `-GoldPoolNodeSize Medium -GoldPoolMaxNodes 3`. |
+| Falla la publicación de un environment | Abre el environment en el portal: ahí se muestra el error. Con `instance_pool_id: null`, bronze y silver usan el starter pool. |
+| Todos los refrescos del modelo fallan con un error de credenciales | Se omitió el paso manual. |
+| La exportación "nested" de `nb_05` termina bien | Aún no hay datos suficientes en la tienda caliente; ejecuta más días de History o sube `-RowsPerDay`. |

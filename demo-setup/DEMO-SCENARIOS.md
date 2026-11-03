@@ -1,91 +1,93 @@
-# Demo scenarios: what is planted and what the agent should find
+# Escenarios de la demo: qué está sembrado y qué debería encontrar el agente
 
-There are two ways to run the demo: as a [conversation](#conversations) that starts broad and
-drills into the details (or the other way round), or one scenario at a time. For each scenario: the
-problem built into the workspace, where it lives, a prompt to give the agent (in Spanish) and the
-findings to expect. The scenarios are also the answer key for the conversation turns. Run numbers assume the
-default `-SimulatedDays 10`; use `-SimulatedDays 15` or more if scenario 1 needs a clearer trend (each
-run takes 15-20 minutes).
+Hay dos formas de hacer la demo: como una [conversación](#conversaciones) que empieza en general y
+baja al detalle (o al revés), o escenario a escenario. Para cada escenario: el problema construido en
+el workspace, dónde está, un prompt para el agente y los hallazgos esperados. Los escenarios son
+también la plantilla de respuestas de los turnos de las conversaciones. Los números de ejecución
+suponen el valor por defecto `-SimulatedDays 10`; usa `-SimulatedDays 15` o más si el escenario 1
+necesita una tendencia más clara (cada ejecución tarda 15-20 minutos).
 
-The prompts ask for the evidence that exposes each problem without naming the cause. Spark run
-details (stages, tasks) are kept for a few hours only, so run the Spark scenarios soon after the
-History phase.
+Los prompts piden la evidencia que destapa cada problema sin nombrar la causa. Los detalles de las
+ejecuciones de Spark (stages, tareas) solo se conservan unas horas, así que lanza los escenarios de
+Spark poco después de la fase History.
 
-## Before you run the agent
+## Antes de ejecutar el agente
 
-The planted problems are not commented in the item code, so the agent has to find them from
-evidence. This file and `demo-setup/` would give them away. While the agent analyzes, either move
-`demo-setup/` out of the repository or, in Claude Code, deny the agent access to it in `.claude/settings.local.json`:
+Los problemas sembrados no están comentados en el código de los items, así que el agente tiene que
+encontrarlos a partir de la evidencia. Este fichero y `demo-setup/` los delatarían. Mientras el agente
+analiza, saca `demo-setup/` del repositorio o, en Claude Code, deniega al agente el acceso en
+`.claude/settings.local.json`:
 
 ```json
 { "permissions": { "deny": ["Read(demo-setup/**)", "Grep(demo-setup/**)", "Glob(demo-setup/**)"] } }
 ```
 
-That file is Claude Code only. With GitHub Copilot, move `demo-setup/` out of the repository.
+Ese fichero solo sirve para Claude Code. Con GitHub Copilot, saca `demo-setup/` del repositorio.
 
-## Conversations
+## Conversaciones
 
-A conversation is a chain of short follow-up questions, each one reacting to what the agent just
-answered. It shows how the agent pivots between areas instead of answering one long prompt.
+Una conversación es una cadena de repreguntas cortas, cada una reaccionando a lo que el agente acaba
+de responder. Muestra cómo el agente pasa de un área a otra en lugar de responder a un único prompt largo.
 
-- **Turn 1** asks the main session for the analysis; it delegates to `FabricPerfAnalyst`.
-- **Later turns** are typed in the same chat. The main session continues the same agent
-  (`SendMessage` in Claude Code, `write_agent` in GitHub Copilot) or, if it is no longer available, starts a new one pointing at the previous
-  report. The agent reuses the scope and findings of that report and only collects the evidence
-  it is missing.
-- **Each turn leaves its own report** in `informes/AAAA-MM-DD/` with the next `<nn>`, citing the
-  previous one in Alcance.
+- **El turno 1** pide el análisis a la sesión principal, que lo delega en `FabricPerfAnalyst`.
+- **Los turnos siguientes** se escriben en el mismo chat. La sesión principal continúa con el mismo agente
+  (`SendMessage` en Claude Code, `write_agent` en GitHub Copilot) o, si ya no está disponible, arranca uno
+  nuevo indicando el informe previo. El agente reutiliza el alcance y los hallazgos de ese informe y solo
+  recoge la evidencia que le falta.
+- **Cada turno deja su propio informe** en `informes/AAAA-MM-DD/` con el siguiente `<nn>`, citando el
+  anterior en Alcance.
 
-The prompts below assume the agent found what the scenario expects. If it answered something else,
-adapt the follow-up to its answer, but do not name the planted cause: ask for the evidence. Run the
-Spark conversation soon after the History phase, because Spark run details expire after a few hours.
+Los prompts de abajo suponen que el agente encontró lo que espera el escenario. Si respondió otra cosa,
+adapta la repregunta a su respuesta, pero no nombres la causa sembrada: pide la evidencia. Lanza la
+conversación de Spark poco después de la fase History, porque los detalles de las ejecuciones de Spark
+caducan a las pocas horas.
 
-### Conversation A: from the pipeline down to the details
+### Conversación A: del pipeline al detalle
 
-Starts with a broad symptom and drills into Spark configuration, skew, cluster size and tables.
+Empieza con un síntoma general y baja a la configuración de Spark, el skew, el tamaño del clúster y las tablas.
 
-| Turn | Prompt | Scenario | What the agent should add |
-|------|--------|----------|---------------------------|
-| 1 | El pipeline `pl_daily_sales` del workspace FabricPerfLab tarda cada día más. ¿Qué es lo que crece entre ejecuciones? | [1](#1-pipeline-slower-every-day) | Trend per activity and notebook; "Bronze to silver" and its shuffle grow, ingest stays flat; full reload in silver |
-| 2 | Dices que el paso de Bronze to silver es el que más crece y que además hay joins con shuffle. ¿Hay data skew o time skew? ¿Qué stages pesan más y qué estrategia usa cada join? | [3](#3-data-skew-time-skew-and-heavy-shuffle) | Max task vs median per stage, sort-merge joins, 2000 near-empty tasks, repeated stages, Python UDF |
-| 3 | Si está desactivado el broadcast y AQE, creo que la configuración no es correcta. Revísala para las tres capas: bronze, silver y gold. | [4](#4-spark-configuration-per-medallion-layer) | Declared vs notebook vs effective table per layer; notebook overrides; V-Order and resource profiles |
-| 4 | Gold usa otro pool. ¿Ese clúster está bien dimensionado para lo que hace `nb_03_silver_to_gold`? | [2](#2-oversized-spark-cluster) | Idle cores with fixed Large executors; starter pool or Medium nodes with dynamic allocation; `nb_04` bonus |
-| 5 | Me has comentado de compactar customer, antes de hacerlo me gustaría analizar todo. ¿Qué tablas de los tres lakehouses necesitan mantenimiento? | [6](#6-delta-tables-that-need-maintenance) | Verdict per table, `dim_date` left alone, VACUUM scheduled rather than run now |
-| 6 | También he visto que el pipeline a veces falla, ¿puedes revisar las ejecuciones fallidas y el motivo? | [5](#5-spark-failures-and-oom) | Schema drift on run 6, OOM types in `pl_store_snapshot`, cost of the retry |
+| Turno | Prompt | Escenario | Qué debería aportar el agente |
+|-------|--------|-----------|-------------------------------|
+| 1 | El pipeline `pl_daily_sales` del workspace FabricPerfLab tarda cada día más. ¿Qué es lo que crece entre ejecuciones? | [1](#1-pipeline-cada-vez-más-lento) | Tendencia por actividad y notebook; "Bronze to silver" y su shuffle crecen, la ingesta se mantiene plana; recarga completa en silver |
+| 2 | Dices que el paso de Bronze to silver es el que más crece y que además hay joins con shuffle. ¿Hay data skew o time skew? ¿Qué stages pesan más y qué estrategia usa cada join? | [3](#3-data-skew-time-skew-y-shuffle-pesado) | Tarea máxima frente a mediana por stage, sort-merge joins, 2000 tareas casi vacías, stages repetidos, UDF de Python |
+| 3 | Si está desactivado el broadcast y AQE, creo que la configuración no es correcta. Revísala para las tres capas: bronze, silver y gold. | [4](#4-configuración-de-spark-por-capa-medallion) | Tabla de declarado frente a notebook frente a efectivo por capa; sobrescrituras en el notebook; V-Order y resource profiles |
+| 4 | Gold usa otro pool. ¿Ese clúster está bien dimensionado para lo que hace `nb_03_silver_to_gold`? | [2](#2-clúster-de-spark-sobredimensionado) | Cores ociosos con ejecutores Large fijos; starter pool o nodos Medium con asignación dinámica; extra: `nb_04` |
+| 5 | Me has comentado de compactar customer, antes de hacerlo me gustaría analizar todo. ¿Qué tablas de los tres lakehouses necesitan mantenimiento? | [6](#6-tablas-delta-que-necesitan-mantenimiento) | Veredicto por tabla, `dim_date` sin tocar, VACUUM programado en lugar de ejecutarlo ahora |
+| 6 | También he visto que el pipeline a veces falla, ¿puedes revisar las ejecuciones fallidas y el motivo? | [5](#5-fallos-de-spark-y-oom) | Schema drift en la ejecución 6, tipos de OOM en `pl_store_snapshot`, coste del reintento |
 
-### Conversation B: from one slow measure up to the whole flow
+### Conversación B: de una medida lenta a todo el flujo
 
-Starts with one specific measure and widens to the model, its refreshes and the pipeline that feeds
-it.
+Empieza con una medida concreta y se amplía al modelo, sus refrescos y el pipeline que lo alimenta.
 
-| Turn | Prompt | Scenario | What the agent should add |
-|------|--------|----------|---------------------------|
-| 1 | La tarjeta de "Avg Ticket" del informe de ventas tarda mucho en cargar. Esta es su consulta: (paste Q1) | [8](#8-dax-performance) (Q1 only) | `Avg Ticket` is the slow measure of Q1, rewrite in `DEFINE` with the same result; the other KPIs are fine |
-| 2 | ¿Y el resto de la página? Estas son las demás consultas: (paste Q2-Q5) | [8](#8-dax-performance) | Slow measures with rewrites; `Enterprise Sales` and `Active Customers` measured and left alone |
-| 3 | Varias medidas filtran sobre `fact_sales` en lugar de una tabla de fechas. ¿El modelo `sm_sales` cumple las buenas prácticas de modelado? | [7](#7-semantic-model-best-practices) | Relationships, data types, calculated columns, date table, measure placement; blank customers traced to the GDPR deletes |
-| 4 | Los usuarios dicen que a veces ven los datos de ayer o el informe da error. ¿Se refresca bien el modelo? | [9](#9-semantic-model-refreshes) | Intermittent `category` failures, unawaited refresh in `nb_04`, schedule misaligned with the pipeline |
-| 5 | Si el refresco depende de `pl_daily_sales`, ¿cómo va ese pipeline y está bien configurada la capa gold que lee el modelo? | [1](#1-pipeline-slower-every-day), [4](#4-spark-configuration-per-medallion-layer) | Growing pipeline and full gold overwrite; gold V-Order and resource profile, and what changes if the model moves to Direct Lake |
+| Turno | Prompt | Escenario | Qué debería aportar el agente |
+|-------|--------|-----------|-------------------------------|
+| 1 | La tarjeta de "Avg Ticket" del informe `rpt_sales` tarda mucho en cargar. | [8](#8-rendimiento-dax) (solo Q1) | Encuentra el informe y reconstruye la consulta de la tarjeta (Q1); `Avg Ticket` es la medida lenta, reescritura en `DEFINE` con el mismo resultado; los demás KPI están bien |
+| 2 | Sabiendo que esa medida está mal, quiero que revises el resto de la página. | [8](#8-rendimiento-dax) | Reconstruye Q2-Q5 a partir de los demás visuales; medidas lentas con sus reescrituras; `Enterprise Sales` y `Active Customers` medidas y sin tocar |
+| 3 | Varias medidas filtran sobre `fact_sales` en lugar de una tabla de fechas. ¿El modelo `sm_sales` cumple las buenas prácticas de modelado? | [7](#7-buenas-prácticas-del-modelo-semántico) | Relaciones, tipos de datos, columnas calculadas, tabla de fechas, ubicación de las medidas; clientes en blanco rastreados hasta los borrados RGPD |
+| 4 | Dame el tamaño en memoria del modelo, de cada tabla y de cada columna |  |  |
+| 5 | Los usuarios dicen que a veces ven los datos de ayer o el informe da error. ¿Se refresca bien el modelo? | [9](#9-refrescos-del-modelo-semántico) | Fallos intermitentes por `category`, refresco no esperado en `nb_04`, programación desalineada con el pipeline |
+| 6 | Si el refresco depende de `pl_daily_sales`, ¿cómo va ese pipeline y está bien configurada la capa gold que lee el modelo? | [1](#1-pipeline-cada-vez-más-lento), [4](#4-configuración-de-spark-por-capa-medallion) | Pipeline que crece y sobrescritura completa de gold; V-Order y resource profile de gold, y qué cambia si el modelo pasa a Direct Lake |
 
-In a talk, three or four turns of one conversation are usually enough; each Spark turn takes
-several minutes.
+En una charla suelen bastar tres o cuatro turnos de una conversación; cada turno de Spark tarda
+varios minutos.
 
-## Summary
+## Resumen
 
-| # | Scenario | Main item | Area file of the agent |
-|---|------|-----------|------------------------|
-| 1 | Pipeline slower every day | `pl_daily_sales` | spark-runs |
-| 2 | Oversized Spark cluster | `env_gold`, `pool_gold_xl` | spark-resources |
-| 3 | Data skew, time skew, heavy shuffle | `nb_02_bronze_to_silver` | spark-runs |
-| 4 | Spark config per medallion layer | `env_bronze`, `env_silver`, `env_gold` | spark-resources |
-| 5 | Spark failures and OOM | `pl_daily_sales` run 6, `pl_store_snapshot` | spark-runs |
-| 6 | Delta tables that need maintenance | `lh_bronze`, `lh_silver`, `lh_gold` | delta-tables |
-| 7 | Model best practices | `sm_sales` | semantic-models |
-| 8 | DAX performance | `sm_sales` measures, `dax/report-queries.dax` | semantic-models |
-| 9 | Model refreshes | `sm_sales` refresh history | semantic-models |
+| # | Escenario | Item principal | Fichero de área del agente |
+|---|-----------|----------------|----------------------------|
+| 1 | Pipeline cada vez más lento | `pl_daily_sales` | spark-runs |
+| 2 | Clúster de Spark sobredimensionado | `env_gold`, `pool_gold_xl` | spark-resources |
+| 3 | Data skew, time skew, shuffle pesado | `nb_02_bronze_to_silver` | spark-runs |
+| 4 | Configuración de Spark por capa medallion | `env_bronze`, `env_silver`, `env_gold` | spark-resources |
+| 5 | Fallos de Spark y OOM | `pl_daily_sales` ejecución 6, `pl_store_snapshot` | spark-runs |
+| 6 | Tablas Delta que necesitan mantenimiento | `lh_bronze`, `lh_silver`, `lh_gold` | delta-tables |
+| 7 | Buenas prácticas del modelo | `sm_sales` | semantic-models |
+| 8 | Rendimiento DAX | medidas de `sm_sales`, visuales de `rpt_sales` (`dax/report-queries.dax`) | semantic-models |
+| 9 | Refrescos del modelo | historial de refrescos de `sm_sales` | semantic-models |
 
 ---
 
-## 1. Pipeline slower every day
+## 1. Pipeline cada vez más lento
 
 > El pipeline `pl_daily_sales` del workspace FabricPerfLab tarda cada día más.
 > No me vale un umbral de regresión: quiero la tendencia de cada actividad y de
@@ -93,113 +95,115 @@ several minutes.
 > y escribe cada notebook (carga completa o incremental) y cómo evolucionan las tablas que toca
 > (ficheros, commits y checkpoints del `_delta_log`). ¿Qué crece y por qué?
 
-| Planted cause | Where | Evidence the agent can use |
-|---------------|-------|----------------------------|
-| Silver rebuilds the whole bronze history every run (`sales_raw` read in full, deduplicated and overwritten) | `nb_02` | Duration of the "Bronze to silver" activity grows with each run while "Ingest bronze" stays flat |
-| 400 small files appended to `sales_raw` per run, never compacted | `nb_01` (`WRITE_PARTITIONS`, optimize write turned off in the notebook because the `readHeavyForPBI` profile of `env_bronze` would turn it on) | File count and average file size of `sales_raw` |
-| 30 tiny commits per run to `inventory_events` with `delta.checkpointInterval = 1000` | `nb_01` | Long `_delta_log` with no checkpoint; slower reads of the table in `nb_02` |
-| `count()` called twice on uncached DataFrames, so the dedup window runs again before the write | `nb_02` | Repeated jobs over the same input in the Spark application |
-| Gold overwrites `fact_sales` in full and the model does a full refresh | `nb_03`, `nb_04` | Gold activity and refresh duration grow with total rows |
+| Causa sembrada | Dónde | Evidencia que puede usar el agente |
+|----------------|-------|------------------------------------|
+| Silver reconstruye todo el historial de bronze en cada ejecución (`sales_raw` se lee entero, se deduplica y se sobrescribe) | `nb_02` | La duración de la actividad "Bronze to silver" crece con cada ejecución mientras "Ingest bronze" se mantiene plana |
+| 400 ficheros pequeños añadidos a `sales_raw` por ejecución, nunca compactados | `nb_01` (`WRITE_PARTITIONS`, optimize write desactivado en el notebook porque el perfil `readHeavyForPBI` de `env_bronze` lo activaría) | Número de ficheros y tamaño medio de fichero de `sales_raw` |
+| 30 commits diminutos por ejecución en `inventory_events` con `delta.checkpointInterval = 1000` | `nb_01` | `_delta_log` largo sin checkpoint; lecturas más lentas de la tabla en `nb_02` |
+| `count()` llamado dos veces sobre DataFrames sin caché, así que la ventana de deduplicación se vuelve a ejecutar antes de la escritura | `nb_02` | Jobs repetidos sobre la misma entrada en la aplicación de Spark |
+| Gold sobrescribe `fact_sales` entera y el modelo hace un refresco completo | `nb_03`, `nb_04` | La duración de la actividad de gold y del refresco crece con el total de filas |
 
-Expected recommendation: incremental load (MERGE of the new business day), compaction, restore the
-checkpoint interval, cache or remove the extra actions.
+Recomendación esperada: carga incremental (MERGE del nuevo día de negocio), compactación, restaurar el
+intervalo de checkpoint, cachear o eliminar las acciones de más.
 
-With few runs the total duration grows slowly and stays well below the usual 2x regression
-threshold; the shuffle of `nb_02` (it grew from about 450 MB to 3.7 GB in 9 runs) and the file
-counts show the trend more clearly than the durations.
+Con pocas ejecuciones la duración total crece despacio y queda muy por debajo del umbral habitual de
+regresión de 2x; el shuffle de `nb_02` (pasó de unos 450 MB a 3,7 GB en 9 ejecuciones) y el número de
+ficheros muestran la tendencia con más claridad que las duraciones.
 
-## 2. Oversized Spark cluster
+## 2. Clúster de Spark sobredimensionado
 
 > ¿Está sobredimensionado el clúster de Spark que usa la capa gold (`env_gold`, pool
 > `pool_gold_xl`)? Compara el tamaño de nodo, la asignación dinámica y los ejecutores con el uso
 > real de cores de las últimas sesiones de `nb_03_silver_to_gold`, contrástalo con `env_bronze` y
 > `env_silver`, y propón el tamaño adecuado.
 
-- `env_gold` runs on `pool_gold_xl` (Large nodes by default) with **dynamic allocation off** and a
-  fixed number of executors (max nodes − 1), each with 16 cores and 112 GB.
-- `nb_03` reads a few million rows and then writes several small tables one after another, so most
-  executor cores sit idle.
-- Expected: low core efficiency / idle executor time; recommend the starter pool or Medium nodes
-  with dynamic allocation. Contrast with `env_bronze` and `env_silver`, which use the starter pool.
-- Bonus the agent may find: `nb_04` opens a Spark session only to call the refresh API, so its cores
-  sit idle; the native semantic model refresh activity would avoid it.
+- `env_gold` corre en `pool_gold_xl` (nodos Large por defecto) con la **asignación dinámica desactivada** y un
+  número fijo de ejecutores (máx. nodos − 1), cada uno con 16 cores y 112 GB.
+- `nb_03` lee unos pocos millones de filas y después escribe varias tablas pequeñas una tras otra, así que
+  la mayoría de los cores de los ejecutores están ociosos.
+- Esperado: baja eficiencia de cores / tiempo ocioso de ejecutores; recomendar el starter pool o nodos Medium
+  con asignación dinámica. Contrastar con `env_bronze` y `env_silver`, que usan el starter pool.
+- Extra que puede encontrar el agente: `nb_04` abre una sesión de Spark solo para llamar a la API de refresco,
+  así que sus cores están ociosos; la actividad nativa de refresco de modelo semántico lo evitaría.
 
-## 3. Data skew, time skew and heavy shuffle
+## 3. Data skew, time skew y shuffle pesado
 
 > ¿Hay data skew o time skew en `nb_02_bronze_to_silver`? ¿Qué stages tienen el shuffle más pesado?
 > Para cada join indica la estrategia del plan (broadcast o sort-merge) y compárala con la
 > configuración Spark efectiva de la sesión. Por stage: registros y bytes de la tarea máxima frente
 > a la mediana, spill, número de tareas y stages que se repiten en varios jobs.
 
-| Case | Planted in `nb_02` | What the Spark metrics show |
-|------|--------------------|-----------------------------|
-| **Data skew** | 60% of sales belong to `store_id = 1` ("Flagship Madrid"). The join with `stores` is a sort-merge join because broadcast is disabled and AQE (with skew join) is off in `env_silver` and again in the notebook. | One task in the join stage reads far more records and bytes than the median |
-| **Time skew without data skew** | `repartitionByRange(64, "sale_ts")` puts the evening sales together; the `classify_note` Python UDF only does heavy work for hours ≥ 22. | Tasks with similar record counts but very different durations |
-| **Heavy shuffle** | Dedup window `partitionBy("sale_id")` over the full history, and the join with `customers` (200k rows) without broadcast. | Large shuffle write/read in those stages, growing every run |
-| **Spill** | The skewed join partition holds about 60% of the rows in one task. | Memory and disk spill on that task, if the partition outgrows the execution memory (depends on volume) |
-| **Too many small tasks** | `spark.sql.shuffle.partitions = 2000` (environment and notebook) for a join on 50 store keys. | Thousands of near-empty tasks; scheduler overhead |
-| **Recomputation** | Two `count()` actions before the write, no cache. | The same stages appear in several jobs |
-| **Python UDF overhead** | `classify_note` is a row-at-a-time Python UDF. | `BatchEvalPython` in the plan; time in Python workers |
+| Caso | Sembrado en `nb_02` | Qué muestran las métricas de Spark |
+|------|---------------------|------------------------------------|
+| **Data skew** | El 60 % de las ventas pertenece a `store_id = 1` ("Flagship Madrid"). El join con `stores` es un sort-merge join porque el broadcast está desactivado y AQE (con skew join) está apagado en `env_silver` y otra vez en el notebook. | Una tarea del stage del join lee muchos más registros y bytes que la mediana |
+| **Time skew sin data skew** | `repartitionByRange(64, "sale_ts")` agrupa las ventas de la noche; la UDF de Python `classify_note` solo hace trabajo pesado para las horas ≥ 22. | Tareas con número de registros parecido pero duraciones muy distintas |
+| **Shuffle pesado** | Ventana de deduplicación `partitionBy("sale_id")` sobre todo el historial, y el join con `customers` (200k filas) sin broadcast. | Shuffle write/read grande en esos stages, creciendo en cada ejecución |
+| **Spill** | La partición sesgada del join concentra alrededor del 60 % de las filas en una tarea. | Spill a memoria y disco en esa tarea, si la partición supera la memoria de ejecución (depende del volumen) |
+| **Demasiadas tareas pequeñas** | `spark.sql.shuffle.partitions = 2000` (environment y notebook) para un join sobre 50 claves de tienda. | Miles de tareas casi vacías; sobrecoste del scheduler |
+| **Recálculo** | Dos acciones `count()` antes de la escritura, sin caché. | Los mismos stages aparecen en varios jobs |
+| **Sobrecoste de UDF de Python** | `classify_note` es una UDF de Python fila a fila. | `BatchEvalPython` en el plan; tiempo en los workers de Python |
 
-Other common cases, not planted: exploding joins (duplicate keys on both
-sides), `collect()` of large results to the driver, skew in `groupBy` aggregations, broadcast of a
-table that is too large, and partition pruning lost by a function on the partition column.
+Otros casos habituales, no sembrados: joins que explotan (claves duplicadas en ambos lados), `collect()`
+de resultados grandes al driver, skew en agregaciones `groupBy`, broadcast de una tabla demasiado grande,
+y pérdida de partition pruning por una función sobre la columna de partición.
 
-## 4. Spark configuration per medallion layer
+## 4. Configuración de Spark por capa medallion
 
 > ¿La configuración de Spark de cada capa de la arquitectura medallion es correcta? Para bronze,
 > silver y gold, haz una tabla con lo declarado en el environment, lo que sobrescribe el notebook con
 > `spark.conf.set` y lo efectivo, frente a lo que necesita la capa según su carga. Gold la consume
 > `sm_sales`; ten en cuenta que podría pasar a Direct Lake.
 
-| Layer | Planted (environment + notebook) | Expected for that layer |
-|-------|----------------------------------|-------------------------|
-| Bronze (write-heavy) | `resourceProfile = readHeavyForPBI`, V-Order **on**, optimize write off, auto compact off; the notebook turns optimize write off again | `writeHeavy`, V-Order off, optimize write / auto compact on |
-| Silver (balanced) | AQE off, skew join off, broadcast disabled (`-1`), 2000 shuffle partitions; the notebook sets all four again | AQE and skew join on, broadcast threshold by default, partitions sized to the data |
-| Gold (read-heavy for Power BI) | `resourceProfile = writeHeavy`, V-Order **off**, optimize write off; the notebook turns AQE off | `readHeavyForPBI` or V-Order + optimize write on, AQE on. Also valid: V-Order off while `sm_sales` stays in Import mode, on as soon as it moves to Direct Lake (Learn advises V-Order only for Direct Lake consumers) |
-| All | Native execution engine off | Consider enabling it |
+| Capa | Sembrado (environment + notebook) | Esperado para esa capa |
+|------|-----------------------------------|------------------------|
+| Bronze (carga de escritura) | `resourceProfile = readHeavyForPBI`, V-Order **activado**, optimize write desactivado, auto compact desactivado; el notebook vuelve a desactivar optimize write | `writeHeavy`, V-Order desactivado, optimize write / auto compact activados |
+| Silver (equilibrada) | AQE desactivado, skew join desactivado, broadcast deshabilitado (`-1`), 2000 particiones de shuffle; el notebook vuelve a fijar las cuatro | AQE y skew join activados, umbral de broadcast por defecto, particiones dimensionadas según los datos |
+| Gold (carga de lectura para Power BI) | `resourceProfile = writeHeavy`, V-Order **desactivado**, optimize write desactivado; el notebook desactiva AQE | `readHeavyForPBI` o V-Order + optimize write activados, AQE activado. También válido: V-Order desactivado mientras `sm_sales` siga en modo Import y activado en cuanto pase a Direct Lake (Learn recomienda V-Order solo para consumidores Direct Lake) |
+| Todas | Native execution engine desactivado | Valorar activarlo |
 
-The agent should flag the notebook-level `spark.conf.set` overrides (they win over the
-environment) and the V-Order key discrepancy listed in the `fabric-perf-analysis` traps. A
-resource profile also sets properties (`readHeavyForPBI` turns optimize write on), so the agent
-should compare declared and effective values rather than trust the environment alone.
+El agente debería señalar las sobrescrituras con `spark.conf.set` a nivel de notebook (prevalecen sobre
+el environment) y la discrepancia de la clave de V-Order que figura en las trampas de
+`fabric-perf-analysis`. Un resource profile también fija propiedades (`readHeavyForPBI` activa optimize
+write), así que el agente debería comparar los valores declarados con los efectivos en lugar de fiarse
+solo del environment.
 
-## 5. Spark failures and OOM
+## 5. Fallos de Spark y OOM
 
 > ¿Qué ejecuciones de Spark han fallado en FabricPerfLab y por qué? ¿Alguna por memoria? Revisa
 > todos los pipelines, cuenta los reintentos y lo que cuestan, distingue el OOM de driver, el de
 > ejecutor y los límites internos de Spark, e indica qué datos faltan aguas abajo por cada fallo.
 
-| Failure | When | Cause |
-|---------|------|-------|
-| `pl_daily_sales` fails in "Ingest bronze" | Run 6 (every `schema_drift_every` = 6 runs) | The source sends `amount` as text; the Delta append fails with a schema mismatch (double vs string). That business day is missing downstream. |
-| `pl_store_snapshot`, `export_format = nested` | History phase, after the daily runs | `collect_list` of JSON documents per store: the hot store builds one huge row, so the executor runs out of memory or exceeds Spark's 2 GB row limit. The activity retries once, so the cost is paid twice. |
-| `pl_store_snapshot`, `export_format = pairs` | History phase, after the daily runs | `toPandas()` of the sales table, then a pandas self-merge on `store_id`: driver `MemoryError`. |
+| Fallo | Cuándo | Causa |
+|-------|--------|-------|
+| `pl_daily_sales` falla en "Ingest bronze" | Ejecución 6 (cada `schema_drift_every` = 6 ejecuciones) | El origen envía `amount` como texto; el append Delta falla por un desajuste de esquema (double frente a string). Ese día de negocio falta aguas abajo. |
+| `pl_store_snapshot`, `export_format = nested` | Fase History, después de las ejecuciones diarias | `collect_list` de documentos JSON por tienda: la tienda caliente genera una única fila enorme, así que el ejecutor se queda sin memoria o supera el límite de 2 GB por fila de Spark. La actividad reintenta una vez, así que el coste se paga dos veces. |
+| `pl_store_snapshot`, `export_format = pairs` | Fase History, después de las ejecuciones diarias | `toPandas()` de la tabla de ventas y después un self-merge de pandas por `store_id`: `MemoryError` en el driver. |
 
-The "nested" failure depends on data volume (the hot store needs a few million rows, which the
-defaults reach after about 8 days). If it succeeded, see the README troubleshooting table.
+El fallo "nested" depende del volumen de datos (la tienda caliente necesita unos pocos millones de filas,
+que con los valores por defecto se alcanzan hacia el día 8). Si terminó bien, consulta la tabla de
+solución de problemas del README.
 
-## 6. Delta tables that need maintenance
+## 6. Tablas Delta que necesitan mantenimiento
 
 > ¿Qué tablas Delta de `lh_bronze`, `lh_silver` y `lh_gold` necesitan mantenimiento y qué operación
 > propones? Dame un veredicto por tabla, también para las que no necesitan nada: ficheros pequeños,
 > checkpoints, deletion vectors, ficheros sin referenciar con su retención y V-Order según quién lee
 > cada capa.
 
-| Table | Problem | Expected proposal |
-|-------|---------|-------------------|
-| `lh_bronze.sales_raw` | About 400 small files per run, never optimized | `OPTIMIZE` (decide on V-Order for bronze) |
-| `lh_bronze.inventory_events` | 30 commits per run, no checkpoint (`checkpointInterval = 1000`), tiny files | Restore the checkpoint interval, `OPTIMIZE` |
-| `lh_silver.customers` | Deletion vectors with daily updates and GDPR deletes: soft-deleted rows build up | `OPTIMIZE` / `REORG TABLE ... APPLY (PURGE)`, then `VACUUM` |
-| `lh_silver.sales`, `lh_gold.fact_sales` | Overwritten in full every run, old files never vacuumed | `VACUUM` with a retention that respects time travel needs |
-| `lh_gold.*` | Written with V-Order off, read by the semantic model | `OPTIMIZE ... VORDER` |
-| `lh_gold.dim_date` | Healthy control table, written once | No action: checks that the agent does not over-recommend |
-| `lh_gold.daily_store_sales` | Not planted on purpose: many tiny files per run from the gold write | Fix the write (fewer partitions) or `OPTIMIZE`; a valid extra finding |
+| Tabla | Problema | Propuesta esperada |
+|-------|----------|--------------------|
+| `lh_bronze.sales_raw` | Unos 400 ficheros pequeños por ejecución, nunca optimizados | `OPTIMIZE` (decidir sobre V-Order en bronze) |
+| `lh_bronze.inventory_events` | 30 commits por ejecución, sin checkpoint (`checkpointInterval = 1000`), ficheros diminutos | Restaurar el intervalo de checkpoint, `OPTIMIZE` |
+| `lh_silver.customers` | Deletion vectors con actualizaciones diarias y borrados RGPD: se acumulan filas borradas lógicamente | `OPTIMIZE` / `REORG TABLE ... APPLY (PURGE)` y después `VACUUM` |
+| `lh_silver.sales`, `lh_gold.fact_sales` | Se sobrescriben enteras en cada ejecución, los ficheros antiguos nunca se limpian con VACUUM | `VACUUM` con una retención que respete las necesidades de time travel |
+| `lh_gold.*` | Escritas con V-Order desactivado, las lee el modelo semántico | `OPTIMIZE ... VORDER` |
+| `lh_gold.dim_date` | Tabla de control sana, escrita una vez | Ninguna acción: comprueba que el agente no recomienda de más |
+| `lh_gold.daily_store_sales` | No sembrado a propósito: muchos ficheros diminutos por ejecución por la escritura de gold | Corregir la escritura (menos particiones) u `OPTIMIZE`; un hallazgo extra válido |
 
-`VACUUM` cannot free anything until the files are older than the 7-day default retention, so on a
-fresh setup the expected answer is to schedule it, not to run it now.
+`VACUUM` no puede liberar nada hasta que los ficheros superen la retención por defecto de 7 días, así
+que en una instalación recién hecha la respuesta esperada es programarlo, no ejecutarlo ahora.
 
-## 7. Semantic model best practices
+## 7. Buenas prácticas del modelo semántico
 
 > Revisa si el modelo semántico `sm_sales` cumple las buenas prácticas de modelado. Usa la
 > definición completa del modelo y no solo INFO.VIEW: tipos de datos exactos (también los de las
@@ -207,29 +211,35 @@ fresh setup the expected answer is to schedule it, not to run it now.
 > hechos, anotaciones del modelo, tabla de fechas y en qué tabla viven las medidas. Si ves problemas
 > de integridad, rastrea su origen en el lakehouse.
 
-- Bidirectional relationship `fact_sales` ↔ `dim_customer`.
-- Many-to-many, bidirectional relationship `promotions` ↔ `dim_product` although `product_code` is
-  unique in `dim_product`.
-- Relationship on a text key (`product_code`).
-- High-cardinality columns loaded but not needed for analysis: `sale_id` (GUID), `sale_ts`
-  (datetime to the second), `email`.
-- Calculated columns in the fact table (`line_margin`, `year_month`) instead of computing them upstream.
-- `double` for money columns instead of fixed decimal.
-- Key columns visible and summarized with `sum` (`store_id`, `customer_id`).
-- `dim_date` exists but is not marked as a date table; time intelligence uses `fact_sales[sale_date]`.
-- Auto date/time annotation enabled; implicit measures not discouraged.
-- Measures without format strings or descriptions, and all of them in the fact table.
-- `IFERROR` instead of `DIVIDE`; `FILTER` over the whole fact table inside `CALCULATE`.
-- Side effect, not planted on purpose: the GDPR deletes in `silver.customers` leave sales whose
-  `customer_id` no longer exists in `dim_customer` (about 14% of `fact_sales`), so customer totals
-  fall into blank. A valid finding if the agent traces it back to the deletes.
+- Relación bidireccional `fact_sales` ↔ `dim_customer`.
+- Relación muchos a muchos y bidireccional `promotions` ↔ `dim_product` aunque `product_code` es
+  único en `dim_product`.
+- Relación sobre una clave de texto (`product_code`).
+- Columnas de alta cardinalidad cargadas pero innecesarias para el análisis: `sale_id` (GUID), `sale_ts`
+  (datetime al segundo), `email`.
+- Columnas calculadas en la tabla de hechos (`line_margin`, `year_month`) en lugar de calcularlas aguas arriba.
+- `double` para columnas de importes en lugar de decimal fijo.
+- Columnas clave visibles y resumidas con `sum` (`store_id`, `customer_id`).
+- `dim_date` existe pero no está marcada como tabla de fechas; la inteligencia de tiempo usa `fact_sales[sale_date]`.
+- Anotación de fecha/hora automática activada; las medidas implícitas no están desaconsejadas.
+- Medidas sin format string ni descripción, y todas en la tabla de hechos.
+- `IFERROR` en lugar de `DIVIDE`; `FILTER` sobre toda la tabla de hechos dentro de `CALCULATE`.
+- Efecto colateral, no sembrado a propósito: los borrados RGPD en `silver.customers` dejan ventas cuyo
+  `customer_id` ya no existe en `dim_customer` (alrededor del 14 % de `fact_sales`), así que los totales
+  por cliente caen en blanco. Un hallazgo válido si el agente lo rastrea hasta los borrados.
 
-## 8. DAX performance
+## 8. Rendimiento DAX
 
-> El informe de ventas va lento. Analiza el rendimiento de las medidas de `sm_sales` con estas
-> consultas de la página. Mide cada consulta y cada medida aislada, con trazas si están
-> disponibles, y para las lentas prueba la reescritura en `DEFINE` comprobando que da el mismo
-> resultado. Indica también qué medidas no hace falta tocar.
+> La página "Sales overview" del informe `rpt_sales` (workspace FabricPerfLab) va lenta. Analiza
+> el rendimiento de las medidas de `sm_sales` que usan sus visuales. Mide la consulta de cada
+> visual y cada medida aislada, con trazas si están disponibles, y para las lentas prueba la
+> reescritura en `DEFINE` comprobando que da el mismo resultado. Indica también qué medidas no
+> hace falta tocar.
+
+El agente lee los visuales de `rpt_sales` (desplegado por `setup.ps1`, o por separado con
+`-Phase Report`) y reconstruye una consulta por visual; deberían coincidir con estas, de
+[`dax/report-queries.dax`](dax/report-queries.dax). Q1 es la tarjeta de varios valores, Q2 la matriz,
+Q3 el gráfico de líneas, Q4 el gráfico de barras y Q5 la tabla.
 
 ```DAX
 // Q1 - KPI cards
@@ -276,40 +286,40 @@ SUMMARIZECOLUMNS(
 )
 ```
 
-Give the agent the queries in [`dax/report-queries.dax`](dax/report-queries.dax) (paste them; they
-live in the hidden folder). Traces need the local `powerbi-modeling-mcp` server with its EULA
-accepted; accept it first, or the agent can only time queries without the FE/SE split.
+Si el informe no está desplegado, pega estas consultas en su lugar (están en la carpeta oculta).
+Las trazas necesitan el servidor local `powerbi-modeling-mcp` con su EULA aceptado; acéptalo antes, o el
+agente solo podrá cronometrar las consultas sin el desglose FE/SE.
 
-| Measure | Why it is slow | Better pattern |
-|---------|----------------|----------------|
-| `Avg Ticket` | `AVERAGEX` over every fact row with `CALCULATE` inside: context transition per row on a table without a key | `DIVIDE([Total Sales], COUNTROWS(fact_sales))` |
-| `Sales Running Total` | `FILTER(ALL(fact_sales))` on the datetime column, evaluated for every point | Filter `dim_date[date]` instead of the fact table |
-| `Top 100 Customers Sales` | `RANKX` inside `SUMX` over 200k customers: quadratic work | `TOPN` once, then `SUMX` over that table |
-| `Enterprise Sales` | `FILTER(fact_sales, RELATED(...))` iterates the fact table | `CALCULATE([Total Sales], dim_customer[segment] = "Enterprise")` |
-| `Active Customers` | `FILTER` + `CALCULATE` per customer | `DISTINCTCOUNT(fact_sales[customer_id])` |
+| Medida | Por qué es lenta | Mejor patrón |
+|--------|------------------|--------------|
+| `Avg Ticket` | `AVERAGEX` sobre todas las filas de hechos con `CALCULATE` dentro: transición de contexto por fila en una tabla sin clave | `DIVIDE([Total Sales], COUNTROWS(fact_sales))` |
+| `Sales Running Total` | `FILTER(ALL(fact_sales))` sobre la columna datetime, evaluado para cada punto | Filtrar `dim_date[date]` en lugar de la tabla de hechos |
+| `Top 100 Customers Sales` | `RANKX` dentro de `SUMX` sobre 200k clientes: trabajo cuadrático | `TOPN` una vez y después `SUMX` sobre esa tabla |
+| `Enterprise Sales` | `FILTER(fact_sales, RELATED(...))` itera la tabla de hechos | `CALCULATE([Total Sales], dim_customer[segment] = "Enterprise")` |
+| `Active Customers` | `FILTER` + `CALCULATE` por cliente | `DISTINCTCOUNT(fact_sales[customer_id])` |
 | `Margin %` | `IFERROR` | `DIVIDE` |
-| `Total Sales`, `Total Quantity` | Simple sums | Control measures: no change expected |
+| `Total Sales`, `Total Quantity` | Sumas simples | Medidas de control: no se espera ningún cambio |
 
-With 10 simulated days (about 9 M rows) `Avg Ticket`, `Sales Running Total` and `Top 100 Customers
-Sales` take seconds, while `Enterprise Sales` and `Active Customers` stay below 150 ms: the engine
-handles those patterns well at this volume. If the agent measures them and leaves them alone, that
-is the right answer: it shows the agent does not over-recommend. The better pattern
-still applies for readability and larger volumes.
+Con 10 días simulados (unos 9 M de filas) `Avg Ticket`, `Sales Running Total` y `Top 100 Customers
+Sales` tardan segundos, mientras que `Enterprise Sales` y `Active Customers` se quedan por debajo de
+150 ms: el motor resuelve bien esos patrones con este volumen. Si el agente los mide y los deja como
+están, es la respuesta correcta: demuestra que no recomienda de más. El mejor patrón sigue siendo
+válido por legibilidad y para volúmenes mayores.
 
-## 9. Semantic model refreshes
+## 9. Refrescos del modelo semántico
 
 > ¿El modelo `sm_sales` se refresca correctamente? Cruza el historial de refrescos (incluidos los
 > fallidos y su mensaje de error), la programación del modelo y las horas de inicio y fin de
 > `pl_daily_sales`, y revisa cómo lanza y vigila el refresco `nb_04`. ¿Cuánto tarda cada refresco,
 > por qué falla y está alineado con el pipeline?
 
-| Planted | Where | Expected finding |
-|---------|-------|------------------|
-| On runs 4 and 8 the gold layer renames `dim_product.category` to `product_category`; the next run restores it | `nb_03` (`product_schema_v2_every = 4`) | Intermittent refresh failures: column `category` not found |
-| The refresh is requested and not awaited, and errors are only printed | `nb_04` | The pipeline is green while the refresh fails: nobody is alerted |
-| Scheduled refresh at 05:30, before the 06:00 pipeline | Refresh schedule | That refresh loads the previous day's data |
-| Scheduled refresh at 06:30, while the pipeline is still running, plus the refresh `nb_04` requests at the end | Refresh schedule, `nb_04` | Overlapping or redundant refreshes; data loaded mid-pipeline |
-| Full refresh of a fact table that grows every day | Model, `nb_03` | Refresh duration grows with the pipeline |
-| No SQL endpoint metadata sync after gold writes | `nb_04` | Possible: the refresh reads the SQL endpoint before it sees the new Delta version |
+| Sembrado | Dónde | Hallazgo esperado |
+|----------|-------|-------------------|
+| En las ejecuciones 4 y 8 la capa gold renombra `dim_product.category` a `product_category`; la siguiente ejecución lo restaura | `nb_03` (`product_schema_v2_every = 4`) | Fallos intermitentes de refresco: no se encuentra la columna `category` |
+| El refresco se solicita sin esperar a que termine, y los errores solo se imprimen | `nb_04` | El pipeline sale en verde mientras el refresco falla: nadie recibe aviso |
+| Refresco programado a las 05:30, antes del pipeline de las 06:00 | Programación de refresco | Ese refresco carga los datos del día anterior |
+| Refresco programado a las 06:30, con el pipeline aún en marcha, más el refresco que solicita `nb_04` al final | Programación de refresco, `nb_04` | Refrescos solapados o redundantes; datos cargados a mitad del pipeline |
+| Refresco completo de una tabla de hechos que crece cada día | Modelo, `nb_03` | La duración del refresco crece con el pipeline |
+| Sin sincronización de metadatos del SQL endpoint después de las escrituras de gold | `nb_04` | Posible: el refresco lee el SQL endpoint antes de que vea la nueva versión Delta |
 
-The schedule rows only show up after the Schedule phase has run for at least one real day.
+Las filas de la programación solo aparecen después de que la fase Schedule haya funcionado al menos un día real.

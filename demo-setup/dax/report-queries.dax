@@ -1,4 +1,4 @@
-// Queries issued by the "Sales overview" report page of sm_sales.
+// Queries issued by the "Sales overview" page of the rpt_sales report (one per visual) over sm_sales.
 // Run them one at a time (DAX query view, DAX Studio or the agent through powerbi-modeling-mcp).
 
 // Q1 - KPI cards
