@@ -10,6 +10,7 @@ apm_modules/
 
 # Local tooling and editor settings
 .atl/
-.vscode/
+.vscode/*
+!.vscode/mcp.json
 .claude/settings.local.json
 __pycache__/

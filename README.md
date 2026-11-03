@@ -4,7 +4,8 @@ Un agente de IA para diagnosticar el rendimiento de Microsoft Fabric (Spark, tab
 endpoint/Warehouse, modelos semánticos y capacidad) desde Claude Code o GitHub Copilot (VS Code y
 Copilot CLI). Usa el bundle oficial
 [`microsoft/skills-for-fabric`](https://github.com/microsoft/skills-for-fabric), instalado con APM,
-como conocimiento base y los MCP servers de Fabric de `.mcp.json` para acceder a datos en vivo. Las
+como conocimiento base y los MCP servers de Fabric (`.mcp.json` para Claude Code, `.vscode/mcp.json`
+para VS Code) para acceder a datos en vivo. Las
 reglas para los dos hosts están en [`AGENTS.md`](AGENTS.md).
 
 ## Qué añade este repositorio
@@ -90,18 +91,25 @@ los escenarios de [`DEMO-SCENARIOS.md`](demo-setup/DEMO-SCENARIOS.md).
 
 ## MCP servers
 
-| Servidor | Tipo | Claude Code | GitHub Copilot |
-|----------|------|-------------|----------------|
-| `FabricIQ` | HTTP | `headersHelper` con `az account get-access-token` | `Authorization: Bearer ${FABRIC_MCP_TOKEN}` |
-| `fabric-sqlendpoint` | HTTP | `headersHelper` | `Authorization: Bearer ${FABRIC_MCP_TOKEN}` |
+Cada host tiene su fichero, porque el formato y la autenticación no son compatibles: Claude Code lee
+`.mcp.json` (`mcpServers`, `headersHelper`) y VS Code lee `.vscode/mcp.json` (`servers`,
+`${env:...}`). Un cambio de servidor se replica en los dos.
+
+| Servidor | Tipo | Claude Code (`.mcp.json`) | GitHub Copilot (`.vscode/mcp.json`) |
+|----------|------|---------------------------|-------------------------------------|
+| `FabricIQ` | HTTP | `headersHelper` con `az account get-access-token` | `Authorization: Bearer ${env:FABRIC_MCP_TOKEN}` |
+| `fabric-sqlendpoint` | HTTP | `headersHelper` | `Authorization: Bearer ${env:FABRIC_MCP_TOKEN}` |
 | `powerbi-modeling-mcp` | stdio (`npx`) | Local | Local |
+
+No pongas un `Authorization` estático en `.mcp.json`: Claude Code lo envía vacío si la variable no
+existe y FabricIQ responde 401 `UnableToParseTokens`.
 
 Entra ID no admite el registro dinámico de clientes de OAuth, así que el token se obtiene de `az`
 (audiencia `https://api.fabric.microsoft.com`). Si caduca: `az login` y reconecta en `/mcp`.
 
 ## VS Code + GitHub Copilot
 
-Copilot lee `AGENTS.md`, las skills instaladas, los agentes de `.github/agents/` y `.mcp.json`. Su
+Copilot lee `AGENTS.md`, las skills instaladas, los agentes de `.github/agents/` y `.vscode/mcp.json`. Su
 copia de `FabricPerfAnalyst` es `.github/agents/FabricPerfAnalyst.agent.md`, cuyo hook lleva
 `--format copilot`.
 
@@ -124,7 +132,11 @@ copia de `FabricPerfAnalyst` es `.github/agents/FabricPerfAnalyst.agent.md`, cuy
 
 - **FabricIQ: error de registro dinámico de clientes**: falta el `headersHelper` en `.mcp.json` o ha
   caducado `az login`.
+- **Claude Code: FabricIQ 401 `UnableToParseTokens`**: hay un `Authorization` estático en
+  `.mcp.json`; quítalo y deja solo el `headersHelper`.
 - **Copilot pide OAuth por navegador o recibe 401**: `FABRIC_MCP_TOKEN` falta o ha caducado.
+- **VS Code muestra los servidores dos veces**: también los descubre de `.mcp.json`; desactiva
+  `chat.mcp.discovery.enabled` para Claude Code.
 - **Copilot deniega todos los comandos con "hook errored"**: el hook corre sin `--format copilot`, en
   el session target **Local**, o no encuentra `python`.
 - **El hook no se dispara**: la carpeta no es de confianza (Workspace Trust en VS Code,
