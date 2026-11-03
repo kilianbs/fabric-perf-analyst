@@ -5,9 +5,10 @@ performance scenarios analyze.
 
 .DESCRIPTION
 Phases (run all of them, or one at a time with -Phase):
-  Deploy   Workspace, lakehouses, Spark pool, environments, notebooks, pipelines, semantic model.
+  Deploy   Workspace, lakehouses, Spark pool, environments, notebooks, pipelines, semantic model, report.
   History  Runs pl_daily_sales once per simulated day, then pl_store_snapshot twice.
   Schedule Daily pipeline schedule and semantic model refresh schedule.
+  Report   Only the rpt_sales report, on a workspace already deployed (not part of All).
 
 The script is idempotent: existing items are matched by name and their definitions updated.
 See README.md for prerequisites, timings and the manual credential step.
@@ -24,7 +25,7 @@ param(
     [string]$WorkspaceName = 'FabricPerfLab',
     [string]$CapacityName,
     [string]$CapacityId,
-    [ValidateSet('All', 'Deploy', 'History', 'Schedule')][string]$Phase = 'All',
+    [ValidateSet('All', 'Deploy', 'History', 'Schedule', 'Report')][string]$Phase = 'All',
     [ValidateRange(1, 60)][int]$SimulatedDays = 10,
     [ValidateRange(10000, 50000000)][int]$RowsPerDay = 1000000,
     [ValidateSet('Small', 'Medium', 'Large', 'XLarge')][string]$GoldPoolNodeSize = 'Large',
@@ -48,6 +49,7 @@ $HistoryLog = Join-Path $StateDir "$WorkspaceName-history.csv"
 $Lakehouses = @('lh_bronze', 'lh_silver', 'lh_gold')
 $GoldPoolName = 'pool_gold_xl'
 $SemanticModelName = 'sm_sales'
+$ReportName = 'rpt_sales'
 $NodeSizes = @{
     Small  = @{ Cores = 4; Memory = '28g' }
     Medium = @{ Cores = 8; Memory = '56g' }
@@ -180,15 +182,37 @@ function Deploy-Notebook([string]$WorkspaceId, [string]$Name, [hashtable]$Spec, 
         -Parts @(ConvertTo-DefinitionPart -PartPath 'notebook-content.py' -Content $source)
 }
 
-function Deploy-SemanticModel([string]$WorkspaceId, [hashtable]$Tokens) {
-    $root = Join-Path $ItemsDir "semantic-model/$SemanticModelName"
-    $parts = Get-ChildItem -Path $root -Recurse -File | ForEach-Object {
-        $relative = [IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/')
+function Get-FolderParts([string]$Root, [hashtable]$Tokens) {
+    Get-ChildItem -Path $Root -Recurse -File -Force | ForEach-Object {
+        $relative = [IO.Path]::GetRelativePath($Root, $_.FullName).Replace('\', '/')
         $content = Expand-Template -Text (Get-Content $_.FullName -Raw) -Tokens $Tokens -Source $relative
         ConvertTo-DefinitionPart -PartPath $relative -Content $content
     }
+}
+
+function Deploy-SemanticModel([string]$WorkspaceId, [hashtable]$Tokens) {
+    $parts = Get-FolderParts -Root (Join-Path $ItemsDir "semantic-model/$SemanticModelName") -Tokens $Tokens
     return Set-FabricItem -WorkspaceId $WorkspaceId -DisplayName $SemanticModelName -Type 'SemanticModel' -Format 'TMDL' -Parts $parts `
         -Description 'Sales model over lh_gold (Import).'
+}
+
+function Deploy-Report([string]$WorkspaceId, [string]$ModelId) {
+    $parts = Get-FolderParts -Root (Join-Path $ItemsDir "report/$ReportName.Report") -Tokens @{ SEMANTIC_MODEL_ID = $ModelId }
+    return Set-FabricItem -WorkspaceId $WorkspaceId -DisplayName $ReportName -Type 'Report' -Format 'PBIR' -Parts $parts `
+        -Description "Sales overview page over $SemanticModelName."
+}
+
+function Invoke-ReportPhase {
+    Write-Step "Report"
+    $ws = (Resolve-Workspace).id
+    $model = Get-FabricItem -WorkspaceId $ws -DisplayName $SemanticModelName -Type 'SemanticModel'
+    if (-not $model) { throw "$SemanticModelName not found in $WorkspaceName. Run the Deploy phase first." }
+    $report = Deploy-Report -WorkspaceId $ws -ModelId $model.id
+    if (Test-Path $StateFile) {
+        $state = Read-State
+        $state.items[$ReportName] = $report.id
+        Save-State $state
+    }
 }
 
 function Deploy-Pipeline([string]$WorkspaceId, [string]$Name, [hashtable]$Tokens) {
@@ -224,6 +248,9 @@ function Invoke-DeployPhase {
     Write-Step "Semantic model"
     $model = Deploy-SemanticModel -WorkspaceId $ws -Tokens @{ GOLD_SQL_ENDPOINT = $goldSql.connectionString; GOLD_DATABASE = 'lh_gold' }
     $ids[$SemanticModelName] = $model.id
+
+    Write-Step "Report"
+    $ids[$ReportName] = (Deploy-Report -WorkspaceId $ws -ModelId $model.id).id
 
     Write-Step "Notebooks"
     foreach ($name in $Notebooks.Keys) {
@@ -339,6 +366,7 @@ function Invoke-SchedulePhase {
 
 Assert-Prerequisites
 if ($Phase -in 'All', 'Deploy') { Invoke-DeployPhase }
+if ($Phase -eq 'Report') { Invoke-ReportPhase }
 if ($Phase -in 'All', 'History') { Invoke-HistoryPhase }
 if ($Phase -in 'All', 'Schedule') { Invoke-SchedulePhase }
 Write-Host "`nDone. Next: see DEMO-SCENARIOS.md." -ForegroundColor Green
