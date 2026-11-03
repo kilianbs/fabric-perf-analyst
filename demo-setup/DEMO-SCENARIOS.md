@@ -62,7 +62,7 @@ Empieza con una medida concreta y se amplía al modelo, sus refrescos y el pipel
 | Turno | Prompt | Escenario | Qué debería aportar el agente |
 |-------|--------|-----------|-------------------------------|
 | 1 | La tarjeta de "Avg Ticket" del informe `rpt_sales` tarda mucho en cargar. | [8](#8-rendimiento-dax) (solo Q1) | Encuentra el informe y reconstruye la consulta de la tarjeta (Q1); `Avg Ticket` es la medida lenta, reescritura en `DEFINE` con el mismo resultado; los demás KPI están bien |
-| 2 | Sabiendo que esa medida está mal, quiero que revises el resto de la página. | [8](#8-rendimiento-dax) | Reconstruye Q2-Q5 a partir de los demás visuales; medidas lentas con sus reescrituras; `Enterprise Sales` y `Active Customers` medidas y sin tocar |
+| 2 | Sabiendo que esa medida está mal, quiero que revises el resto de la página del informe. | [8](#8-rendimiento-dax) | Reconstruye Q2-Q5 a partir de los demás visuales; medidas lentas con sus reescrituras; `Enterprise Sales` y `Active Customers` medidas y sin tocar |
 | 3 | Varias medidas filtran sobre `fact_sales` en lugar de una tabla de fechas. ¿El modelo `sm_sales` cumple las buenas prácticas de modelado? | [7](#7-buenas-prácticas-del-modelo-semántico) | Relaciones, tipos de datos, columnas calculadas, tabla de fechas, ubicación de las medidas; clientes en blanco rastreados hasta los borrados RGPD |
 | 4 | Dame el tamaño en memoria del modelo, de cada tabla y de cada columna |  |  |
 | 5 | Los usuarios dicen que a veces ven los datos de ayer o el informe da error. ¿Se refresca bien el modelo? | [9](#9-refrescos-del-modelo-semántico) | Fallos intermitentes por `category`, refresco no esperado en `nb_04`, programación desalineada con el pipeline |

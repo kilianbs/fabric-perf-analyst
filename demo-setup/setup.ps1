@@ -103,7 +103,7 @@ function Resolve-Workspace {
     }
     $workspace = Invoke-FabricRequest -Method POST -Path '/workspaces' -Body @{
         displayName = $WorkspaceName
-        description = 'Performance diagnosis lab for Claude Code and skills-for-fabric.'
+        description = 'Performance diagnosis lab for Claude Code / Copilot and skills-for-fabric.'
         capacityId  = $capacity
     }
     Write-Host "  + Workspace $WorkspaceName ($($workspace.id))"
