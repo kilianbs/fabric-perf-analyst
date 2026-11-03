@@ -134,6 +134,7 @@ pwsh ./demo-setup/teardown.ps1                     # borra el workspace (pide qu
 
 | Síntoma | Causa probable y solución |
 |---------|---------------------------|
+| `setup.ps1 cannot be loaded ... is not digitally signed` | La directiva de ejecución de PowerShell bloquea el script (pasa con `RemoteSigned` si el repositorio se descargó como ZIP, o con `AllSigned`). Lánzalo saltándote la directiva solo para esta ejecución: `pwsh -ExecutionPolicy Bypass -File ./demo-setup/setup.ps1 -CapacityName "<capacidad>"`. Si vino en un ZIP, también puedes desbloquear los ficheros: `Get-ChildItem -Recurse ./demo-setup \| Unblock-File`. Si una directiva de grupo la impone, habla con tu administrador. |
 | `Not signed in` / HTTP 401 | Vuelve a ejecutar `az login`; sin suscripción de Azure, `az login --allow-no-subscriptions`. |
 | `Capacity '...' not found` | El nombre debe coincidir exactamente con el nombre visible de la capacidad, o pasa `-CapacityId`. La capacidad debe estar activa. |
 | La creación del pool falla con un error de tamaño de nodo | La capacidad es demasiado pequeña para nodos Large: `-GoldPoolNodeSize Medium -GoldPoolMaxNodes 3`. |

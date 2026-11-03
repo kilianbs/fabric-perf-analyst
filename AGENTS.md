@@ -35,6 +35,6 @@ configuración: [README.md](README.md). `CLAUDE.md` solo importa este archivo.
   patrón `<nn>-<slug>.md` (`<nn>` correlativo dentro de la carpeta). Un informe
   existente nunca se sobrescribe: la nueva versión lleva el sufijo `-v2` (o el siguiente libre).
 - **Contenido de `skills-for-fabric`:** no editar las skills de `.claude/skills/` que instala
-  `apm install --only apm` ni los agentes de `.claude/agents/` copiados del paquete. Las únicas
+  `apm install --only apm` ni los agentes copiados del paquete en `.claude/agents/` y `.github/agents/`. Las únicas
   excepciones son la skill `.claude/skills/fabric-perf-analysis/` y las dos copias del agente
   `FabricPerfAnalyst`, que son propias de este repositorio.
