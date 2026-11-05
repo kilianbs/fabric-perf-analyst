@@ -10,7 +10,8 @@ configuración: [README.md](README.md). `CLAUDE.md` solo importa este archivo.
   tablas Delta, SQL endpoint/Warehouse, modelos semánticos o capacidad) se delega en el agente
   `FabricPerfAnalyst`. Las repreguntas de una misma conversación se envían al agente en curso
   (`SendMessage` en Claude Code, `write_agent` en GitHub Copilot) o, si ya no está disponible, a uno
-  nuevo indicando el informe previo. La administración (permisos, capacidad, gobierno) corresponde a
+  nuevo indicando el informe previo. Al usuario solo se le devuelve un resumen breve (la ruta del
+  informe y 3-5 viñetas con la respuesta), sin ampliar ni repetir el contenido del informe. La administración (permisos, capacidad, gobierno) corresponde a
   `FabricAdmin`.
 - **Sin cambios en Fabric desde `FabricPerfAnalyst`:** el agente nunca crea, modifica, borra,
   refresca, programa o mantiene items de un workspace, ni ejecuta notebooks, jobs o pipelines; esos
@@ -32,8 +33,9 @@ configuración: [README.md](README.md). `CLAUDE.md` solo importa este archivo.
   Solo difieren en el frontmatter del hook (`--format copilot`, ruta relativa) y en el host del
   informe. Cualquier cambio en una se replica en la otra.
 - **Informes:** se guardan en una carpeta por día de análisis, `informes/AAAA-MM-DD/`, con el
-  patrón `<nn>-<slug>.md` (`<nn>` correlativo dentro de la carpeta). Un informe
-  existente nunca se sobrescribe: la nueva versión lleva el sufijo `-v2` (o el siguiente libre).
+  patrón `<nn>-<slug>.md` (`<nn>` correlativo dentro de la carpeta). Cada repregunta lleva el
+  siguiente `<nn>`. Un informe existente nunca se sobrescribe: rehacer la misma pregunta lleva el
+  sufijo `-v2` (o el siguiente libre).
 - **Contenido de `skills-for-fabric`:** no editar las skills de `.claude/skills/` que instala
   `apm install --only apm` ni los agentes copiados del paquete en `.claude/agents/` y `.github/agents/`. Las únicas
   excepciones son la skill `.claude/skills/fabric-perf-analysis/` y las dos copias del agente
